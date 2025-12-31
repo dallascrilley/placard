@@ -1,0 +1,18 @@
+services:
+  meta-oauth:
+    build: .
+    container_name: meta-oauth-callback
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - META_APP_ID=${META_APP_ID}
+      - META_APP_SECRET=${META_APP_SECRET}
+      - META_API_VERSION=v22.0
+      - CALLBACK_URL=https://example.com/callback
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.meta-oauth.rule=Host(`example.com`)"
+      - "traefik.http.routers.meta-oauth.entrypoints=websecure"
+      - "traefik.http.routers.meta-oauth.tls.certresolver=letsencrypt"
+      - "traefik.http.services.meta-oauth.loadbalancer.server.port=3000"

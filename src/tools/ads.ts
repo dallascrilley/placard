@@ -7,9 +7,12 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createMetaClient } from "../api/meta-client.js";
-
-// Valid ad statuses
-const AD_STATUSES = ["ACTIVE", "PAUSED", "DELETED", "ARCHIVED"] as const;
+import { AD_STATUSES } from "../constants/index.js";
+import { normalizeAccountId } from "../utils/id-normalizer.js";
+import {
+  createErrorResponse,
+  createSuccessResponse,
+} from "../utils/tool-responses.js";
 
 export function registerAdTools(server: McpServer): void {
   /**
@@ -37,51 +40,19 @@ export function registerAdTools(server: McpServer): void {
     },
     async ({ account_id, limit, adset_id, user_id }) => {
       try {
-        const normalizedId = account_id.startsWith("act_")
-          ? account_id
-          : `act_${account_id}`;
-
+        const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
         const response = await client.getAds(normalizedId, {
           limit: limit ?? 25,
           adset_id,
         });
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: true,
-                  ads: response.data,
-                  paging: response.paging,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({
+          ads: response.data,
+          paging: response.paging,
+        });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );
@@ -104,40 +75,9 @@ export function registerAdTools(server: McpServer): void {
         const client = createMetaClient({ userId: user_id ?? "default" });
         const ad = await client.getAdDetails(ad_id);
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: true,
-                  ad,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({ ad });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );
@@ -181,9 +121,7 @@ export function registerAdTools(server: McpServer): void {
       user_id,
     }) => {
       try {
-        const normalizedId = account_id.startsWith("act_")
-          ? account_id
-          : `act_${account_id}`;
+        const normalizedId = normalizeAccountId(account_id);
 
         // Build creative object
         let creativeSpec: { creative_id: string } | object;
@@ -192,23 +130,9 @@ export function registerAdTools(server: McpServer): void {
         } else if (creative) {
           creativeSpec = creative;
         } else {
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: JSON.stringify(
-                  {
-                    success: false,
-                    error:
-                      "Either creative_id or creative specification is required",
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-            isError: true,
-          };
+          return createErrorResponse(
+            "Either creative_id or creative specification is required",
+          );
         }
 
         const client = createMetaClient({ userId: user_id ?? "default" });
@@ -220,41 +144,12 @@ export function registerAdTools(server: McpServer): void {
           status: status ?? "PAUSED",
         });
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: true,
-                  ad_id: result.id,
-                  message: `Ad "${name}" created successfully`,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({
+          ad_id: result.id,
+          message: `Ad "${name}" created successfully`,
+        });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );
@@ -283,40 +178,11 @@ export function registerAdTools(server: McpServer): void {
           status,
         });
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: result.success,
-                  message: `Ad ${ad_id} updated successfully`,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({
+          message: `Ad ${ad_id} updated successfully`,
+        });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );

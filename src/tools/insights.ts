@@ -7,66 +7,17 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createMetaClient } from "../api/meta-client.js";
-
-// Valid date presets for insights
-const DATE_PRESETS = [
-  "today",
-  "yesterday",
-  "this_month",
-  "last_month",
-  "this_quarter",
-  "maximum",
-  "data_maximum",
-  "last_3d",
-  "last_7d",
-  "last_14d",
-  "last_28d",
-  "last_30d",
-  "last_90d",
-  "last_week_mon_sun",
-  "last_week_sun_sat",
-  "last_quarter",
-  "last_year",
-  "this_week_mon_today",
-  "this_week_sun_today",
-  "this_year",
-] as const;
-
-// Valid breakdown dimensions
-const BREAKDOWNS = [
-  "age",
-  "gender",
-  "country",
-  "dma",
-  "region",
-  "impression_device",
-  "platform_position",
-  "publisher_platform",
-  "device_platform",
-  "product_id",
-  "frequency_value",
-  "hourly_stats_aggregated_by_advertiser_time_zone",
-  "hourly_stats_aggregated_by_audience_time_zone",
-] as const;
-
-// Valid insight levels
-const INSIGHT_LEVELS = ["account", "campaign", "adset", "ad"] as const;
-
-// Common insight fields
-const DEFAULT_FIELDS = [
-  "impressions",
-  "clicks",
-  "spend",
-  "reach",
-  "frequency",
-  "cpm",
-  "cpp",
-  "ctr",
-  "cpc",
-  "actions",
-  "conversions",
-  "cost_per_action_type",
-];
+import {
+  BREAKDOWNS,
+  DATE_PRESETS,
+  DEFAULT_INSIGHT_FIELDS,
+  INSIGHT_LEVELS,
+} from "../constants/index.js";
+import { normalizeAccountId } from "../utils/id-normalizer.js";
+import {
+  createErrorResponse,
+  createSuccessResponse,
+} from "../utils/tool-responses.js";
 
 export function registerInsightsTools(server: McpServer): void {
   /**
@@ -112,53 +63,19 @@ export function registerInsightsTools(server: McpServer): void {
       user_id,
     }) => {
       try {
-        const normalizedId = account_id.startsWith("act_")
-          ? account_id
-          : `act_${account_id}`;
-
+        const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
         const response = await client.getInsights(normalizedId, {
           date_preset,
           time_range,
           breakdown,
-          fields: fields ?? DEFAULT_FIELDS,
+          fields: fields ?? DEFAULT_INSIGHT_FIELDS,
           level: "account",
         });
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: true,
-                  insights: response.data,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({ insights: response.data });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );
@@ -215,43 +132,12 @@ export function registerInsightsTools(server: McpServer): void {
           time_range,
           level: level ?? "campaign",
           breakdown,
-          fields: fields ?? DEFAULT_FIELDS,
+          fields: fields ?? DEFAULT_INSIGHT_FIELDS,
         });
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: true,
-                  insights: response.data,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({ insights: response.data });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );
@@ -303,43 +189,12 @@ export function registerInsightsTools(server: McpServer): void {
           time_range,
           level: "adset",
           breakdown,
-          fields: fields ?? DEFAULT_FIELDS,
+          fields: fields ?? DEFAULT_INSIGHT_FIELDS,
         });
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: true,
-                  insights: response.data,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({ insights: response.data });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );
@@ -384,43 +239,12 @@ export function registerInsightsTools(server: McpServer): void {
           time_range,
           level: "ad",
           breakdown,
-          fields: fields ?? DEFAULT_FIELDS,
+          fields: fields ?? DEFAULT_INSIGHT_FIELDS,
         });
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: true,
-                  insights: response.data,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({ insights: response.data });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );

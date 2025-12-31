@@ -8,6 +8,12 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createMetaClient } from "../api/meta-client.js";
 import { TARGETING_TYPES } from "../constants/index.js";
+import {
+  accountIdSchema,
+  createLimitSchema,
+  targetingSchema,
+  userIdSchema,
+} from "../schemas/index.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
 import {
   createErrorResponse,
@@ -28,17 +34,8 @@ export function registerTargetingTools(server: McpServer): void {
           "Type of targeting to search for (e.g., 'adinterest', 'adgeolocation')",
         ),
       query: z.string().min(1).describe("Search query"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .optional()
-        .describe("Maximum number of results (default: 25)"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      limit: createLimitSchema("results"),
+      user_id: userIdSchema,
     },
     async ({ type, query, limit, user_id }) => {
       try {
@@ -63,18 +60,11 @@ export function registerTargetingTools(server: McpServer): void {
     "get_reach_estimate",
     "Get estimated reach for a targeting specification",
     {
-      account_id: z
-        .string()
-        .describe("Ad account ID (with or without 'act_' prefix)"),
-      targeting: z
-        .record(z.unknown())
-        .describe(
-          "Targeting specification object (geo_locations, interests, age_min, age_max, etc.)",
-        ),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      account_id: accountIdSchema,
+      targeting: targetingSchema.describe(
+        "Targeting specification object (geo_locations, interests, age_min, age_max, etc.)",
+      ),
+      user_id: userIdSchema,
     },
     async ({ account_id, targeting, user_id }) => {
       try {

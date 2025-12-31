@@ -8,6 +8,11 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createMetaClient } from "../api/meta-client.js";
 import { AD_STATUSES } from "../constants/index.js";
+import {
+  accountIdSchema,
+  createLimitSchema,
+  userIdSchema,
+} from "../schemas/index.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
 import {
   createErrorResponse,
@@ -22,21 +27,10 @@ export function registerAdTools(server: McpServer): void {
     "get_ads",
     "List ads for an ad account with optional filtering",
     {
-      account_id: z
-        .string()
-        .describe("Ad account ID (with or without 'act_' prefix)"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .optional()
-        .describe("Maximum number of ads to return (default: 25)"),
+      account_id: accountIdSchema,
+      limit: createLimitSchema("ads"),
       adset_id: z.string().optional().describe("Filter by ad set ID"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      user_id: userIdSchema,
     },
     async ({ account_id, limit, adset_id, user_id }) => {
       try {
@@ -65,10 +59,7 @@ export function registerAdTools(server: McpServer): void {
     "Get detailed information about a specific ad",
     {
       ad_id: z.string().describe("Ad ID"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      user_id: userIdSchema,
     },
     async ({ ad_id, user_id }) => {
       try {
@@ -89,9 +80,7 @@ export function registerAdTools(server: McpServer): void {
     "create_ad",
     "Create a new ad within an ad set",
     {
-      account_id: z
-        .string()
-        .describe("Ad account ID (with or without 'act_' prefix)"),
+      account_id: accountIdSchema,
       name: z.string().min(1).describe("Ad name"),
       adset_id: z.string().describe("Parent ad set ID"),
       creative_id: z
@@ -106,10 +95,7 @@ export function registerAdTools(server: McpServer): void {
         .enum(["ACTIVE", "PAUSED"])
         .optional()
         .describe("Initial ad status (default: PAUSED)"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      user_id: userIdSchema,
     },
     async ({
       account_id,
@@ -164,10 +150,7 @@ export function registerAdTools(server: McpServer): void {
       ad_id: z.string().describe("Ad ID to update"),
       name: z.string().min(1).optional().describe("New ad name"),
       status: z.enum(AD_STATUSES).optional().describe("New ad status"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      user_id: userIdSchema,
     },
     async ({ ad_id, name, status, user_id }) => {
       try {

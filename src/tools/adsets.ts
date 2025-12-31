@@ -13,6 +13,15 @@ import {
   BILLING_EVENTS,
   OPTIMIZATION_GOALS,
 } from "../constants/index.js";
+import {
+  accountIdSchema,
+  createLimitSchema,
+  dailyBudgetSchema,
+  lifetimeBudgetSchema,
+  optionalTargetingSchema,
+  targetingSchema,
+  userIdSchema,
+} from "../schemas/index.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
 import {
   createErrorResponse,
@@ -27,21 +36,10 @@ export function registerAdSetTools(server: McpServer): void {
     "get_adsets",
     "List ad sets for an ad account with optional filtering",
     {
-      account_id: z
-        .string()
-        .describe("Ad account ID (with or without 'act_' prefix)"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .optional()
-        .describe("Maximum number of ad sets to return (default: 25)"),
+      account_id: accountIdSchema,
+      limit: createLimitSchema("ad sets"),
       campaign_id: z.string().optional().describe("Filter by campaign ID"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      user_id: userIdSchema,
     },
     async ({ account_id, limit, campaign_id, user_id }) => {
       try {
@@ -70,10 +68,7 @@ export function registerAdSetTools(server: McpServer): void {
     "Get detailed information about a specific ad set",
     {
       adset_id: z.string().describe("Ad set ID"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      user_id: userIdSchema,
     },
     async ({ adset_id, user_id }) => {
       try {
@@ -94,34 +89,22 @@ export function registerAdSetTools(server: McpServer): void {
     "create_adset",
     "Create a new ad set within a campaign",
     {
-      account_id: z
-        .string()
-        .describe("Ad account ID (with or without 'act_' prefix)"),
+      account_id: accountIdSchema,
       name: z.string().min(1).describe("Ad set name"),
       campaign_id: z.string().describe("Parent campaign ID"),
       optimization_goal: z
         .enum(OPTIMIZATION_GOALS)
         .describe("What the ad set is optimizing for"),
       billing_event: z.enum(BILLING_EVENTS).describe("Billing event type"),
-      targeting: z
-        .record(z.unknown())
-        .describe("Targeting specification object"),
+      targeting: targetingSchema,
       status: z
         .enum(["ACTIVE", "PAUSED"])
         .optional()
         .describe("Initial ad set status (default: PAUSED)"),
-      daily_budget: z
-        .number()
-        .int()
-        .positive()
-        .optional()
-        .describe("Daily budget in cents"),
-      lifetime_budget: z
-        .number()
-        .int()
-        .positive()
-        .optional()
-        .describe("Lifetime budget in cents"),
+      daily_budget: dailyBudgetSchema.describe("Daily budget in cents"),
+      lifetime_budget: lifetimeBudgetSchema.describe(
+        "Lifetime budget in cents",
+      ),
       bid_amount: z
         .number()
         .int()
@@ -134,10 +117,7 @@ export function registerAdSetTools(server: McpServer): void {
         .optional()
         .describe("Start time in ISO 8601 format"),
       end_time: z.string().optional().describe("End time in ISO 8601 format"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      user_id: userIdSchema,
     },
     async ({
       account_id,
@@ -194,22 +174,11 @@ export function registerAdSetTools(server: McpServer): void {
       adset_id: z.string().describe("Ad set ID to update"),
       name: z.string().min(1).optional().describe("New ad set name"),
       status: z.enum(ADSET_STATUSES).optional().describe("New ad set status"),
-      daily_budget: z
-        .number()
-        .int()
-        .positive()
-        .optional()
-        .describe("New daily budget in cents"),
-      lifetime_budget: z
-        .number()
-        .int()
-        .positive()
-        .optional()
-        .describe("New lifetime budget in cents"),
-      targeting: z
-        .record(z.unknown())
-        .optional()
-        .describe("New targeting specification"),
+      daily_budget: dailyBudgetSchema.describe("New daily budget in cents"),
+      lifetime_budget: lifetimeBudgetSchema.describe(
+        "New lifetime budget in cents",
+      ),
+      targeting: optionalTargetingSchema,
       bid_amount: z
         .number()
         .int()
@@ -220,10 +189,7 @@ export function registerAdSetTools(server: McpServer): void {
         .enum(BID_STRATEGIES)
         .optional()
         .describe("New bid strategy"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      user_id: userIdSchema,
     },
     async ({
       adset_id,

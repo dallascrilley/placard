@@ -12,6 +12,13 @@ import {
   CAMPAIGN_STATUSES,
   SPECIAL_AD_CATEGORIES,
 } from "../constants/index.js";
+import {
+  accountIdSchema,
+  createLimitSchema,
+  dailyBudgetSchema,
+  lifetimeBudgetSchema,
+  userIdSchema,
+} from "../schemas/index.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
 import {
   createErrorResponse,
@@ -26,24 +33,13 @@ export function registerCampaignTools(server: McpServer): void {
     "get_campaigns",
     "List campaigns for an ad account with optional filtering",
     {
-      account_id: z
-        .string()
-        .describe("Ad account ID (with or without 'act_' prefix)"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .optional()
-        .describe("Maximum number of campaigns to return (default: 25)"),
+      account_id: accountIdSchema,
+      limit: createLimitSchema("campaigns"),
       status: z
         .enum(CAMPAIGN_STATUSES)
         .optional()
         .describe("Filter by campaign status"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      user_id: userIdSchema,
     },
     async ({ account_id, limit, status, user_id }) => {
       try {
@@ -72,10 +68,7 @@ export function registerCampaignTools(server: McpServer): void {
     "Get detailed information about a specific campaign",
     {
       campaign_id: z.string().describe("Campaign ID"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      user_id: userIdSchema,
     },
     async ({ campaign_id, user_id }) => {
       try {
@@ -96,9 +89,7 @@ export function registerCampaignTools(server: McpServer): void {
     "create_campaign",
     "Create a new advertising campaign",
     {
-      account_id: z
-        .string()
-        .describe("Ad account ID (with or without 'act_' prefix)"),
+      account_id: accountIdSchema,
       name: z.string().min(1).describe("Campaign name"),
       objective: z
         .enum(CAMPAIGN_OBJECTIVES)
@@ -113,22 +104,9 @@ export function registerCampaignTools(server: McpServer): void {
         .describe(
           "Special ad categories if applicable (required for housing, employment, credit, political ads)",
         ),
-      daily_budget: z
-        .number()
-        .int()
-        .positive()
-        .optional()
-        .describe("Daily budget in cents (e.g., 1000 = $10.00)"),
-      lifetime_budget: z
-        .number()
-        .int()
-        .positive()
-        .optional()
-        .describe("Lifetime budget in cents (e.g., 10000 = $100.00)"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      daily_budget: dailyBudgetSchema,
+      lifetime_budget: lifetimeBudgetSchema,
+      user_id: userIdSchema,
     },
     async ({
       account_id,
@@ -184,22 +162,11 @@ export function registerCampaignTools(server: McpServer): void {
         .enum(CAMPAIGN_STATUSES)
         .optional()
         .describe("New campaign status"),
-      daily_budget: z
-        .number()
-        .int()
-        .positive()
-        .optional()
-        .describe("New daily budget in cents"),
-      lifetime_budget: z
-        .number()
-        .int()
-        .positive()
-        .optional()
-        .describe("New lifetime budget in cents"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      daily_budget: dailyBudgetSchema.describe("New daily budget in cents"),
+      lifetime_budget: lifetimeBudgetSchema.describe(
+        "New lifetime budget in cents",
+      ),
+      user_id: userIdSchema,
     },
     async ({
       campaign_id,

@@ -7,12 +7,15 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createMetaClient } from "../api/meta-client.js";
+import { DEFAULT_INSIGHT_FIELDS, INSIGHT_LEVELS } from "../constants/index.js";
 import {
-  BREAKDOWNS,
-  DATE_PRESETS,
-  DEFAULT_INSIGHT_FIELDS,
-  INSIGHT_LEVELS,
-} from "../constants/index.js";
+  accountIdSchema,
+  breakdownSchema,
+  datePresetSchema,
+  fieldsSchema,
+  timeRangeSchema,
+  userIdSchema,
+} from "../schemas/index.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
 import {
   createErrorResponse,
@@ -27,32 +30,12 @@ export function registerInsightsTools(server: McpServer): void {
     "get_account_insights",
     "Get performance insights for an entire ad account",
     {
-      account_id: z
-        .string()
-        .describe("Ad account ID (with or without 'act_' prefix)"),
-      date_preset: z
-        .enum(DATE_PRESETS)
-        .optional()
-        .describe("Predefined date range (default: 'maximum')"),
-      time_range: z
-        .object({
-          since: z.string().describe("Start date in YYYY-MM-DD format"),
-          until: z.string().describe("End date in YYYY-MM-DD format"),
-        })
-        .optional()
-        .describe("Custom date range (overrides date_preset)"),
-      breakdown: z
-        .enum(BREAKDOWNS)
-        .optional()
-        .describe("Breakdown dimension for the data"),
-      fields: z
-        .array(z.string())
-        .optional()
-        .describe("Specific fields to return (default: standard metrics)"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      account_id: accountIdSchema,
+      date_preset: datePresetSchema,
+      time_range: timeRangeSchema,
+      breakdown: breakdownSchema,
+      fields: fieldsSchema,
+      user_id: userIdSchema,
     },
     async ({
       account_id,
@@ -88,33 +71,15 @@ export function registerInsightsTools(server: McpServer): void {
     "Get performance insights for a specific campaign",
     {
       campaign_id: z.string().describe("Campaign ID"),
-      date_preset: z
-        .enum(DATE_PRESETS)
-        .optional()
-        .describe("Predefined date range (default: 'maximum')"),
-      time_range: z
-        .object({
-          since: z.string().describe("Start date in YYYY-MM-DD format"),
-          until: z.string().describe("End date in YYYY-MM-DD format"),
-        })
-        .optional()
-        .describe("Custom date range (overrides date_preset)"),
+      date_preset: datePresetSchema,
+      time_range: timeRangeSchema,
       level: z
         .enum(INSIGHT_LEVELS)
         .optional()
         .describe("Level of aggregation (default: 'campaign')"),
-      breakdown: z
-        .enum(BREAKDOWNS)
-        .optional()
-        .describe("Breakdown dimension for the data"),
-      fields: z
-        .array(z.string())
-        .optional()
-        .describe("Specific fields to return (default: standard metrics)"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      breakdown: breakdownSchema,
+      fields: fieldsSchema,
+      user_id: userIdSchema,
     },
     async ({
       campaign_id,
@@ -150,29 +115,11 @@ export function registerInsightsTools(server: McpServer): void {
     "Get performance insights for a specific ad set",
     {
       adset_id: z.string().describe("Ad set ID"),
-      date_preset: z
-        .enum(DATE_PRESETS)
-        .optional()
-        .describe("Predefined date range (default: 'maximum')"),
-      time_range: z
-        .object({
-          since: z.string().describe("Start date in YYYY-MM-DD format"),
-          until: z.string().describe("End date in YYYY-MM-DD format"),
-        })
-        .optional()
-        .describe("Custom date range (overrides date_preset)"),
-      breakdown: z
-        .enum(BREAKDOWNS)
-        .optional()
-        .describe("Breakdown dimension for the data"),
-      fields: z
-        .array(z.string())
-        .optional()
-        .describe("Specific fields to return (default: standard metrics)"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      date_preset: datePresetSchema,
+      time_range: timeRangeSchema,
+      breakdown: breakdownSchema,
+      fields: fieldsSchema,
+      user_id: userIdSchema,
     },
     async ({
       adset_id,
@@ -207,29 +154,11 @@ export function registerInsightsTools(server: McpServer): void {
     "Get performance insights for a specific ad",
     {
       ad_id: z.string().describe("Ad ID"),
-      date_preset: z
-        .enum(DATE_PRESETS)
-        .optional()
-        .describe("Predefined date range (default: 'maximum')"),
-      time_range: z
-        .object({
-          since: z.string().describe("Start date in YYYY-MM-DD format"),
-          until: z.string().describe("End date in YYYY-MM-DD format"),
-        })
-        .optional()
-        .describe("Custom date range (overrides date_preset)"),
-      breakdown: z
-        .enum(BREAKDOWNS)
-        .optional()
-        .describe("Breakdown dimension for the data"),
-      fields: z
-        .array(z.string())
-        .optional()
-        .describe("Specific fields to return (default: standard metrics)"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      date_preset: datePresetSchema,
+      time_range: timeRangeSchema,
+      breakdown: breakdownSchema,
+      fields: fieldsSchema,
+      user_id: userIdSchema,
     },
     async ({ ad_id, date_preset, time_range, breakdown, fields, user_id }) => {
       try {

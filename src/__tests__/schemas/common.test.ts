@@ -52,6 +52,11 @@ describe("Common Schemas", () => {
       const result = accountIdSchema.safeParse(123456789);
       expect(result.success).toBe(false);
     });
+
+    it("rejects undefined (required field)", () => {
+      const result = accountIdSchema.safeParse(undefined);
+      expect(result.success).toBe(false);
+    });
   });
 
   describe("createLimitSchema", () => {
@@ -204,6 +209,11 @@ describe("Common Schemas", () => {
         age_max: 65,
       });
       expect(result.success).toBe(true);
+    });
+
+    it("targetingSchema rejects undefined (required field)", () => {
+      const result = targetingSchema.safeParse(undefined);
+      expect(result.success).toBe(false);
     });
 
     it("optionalTargetingSchema accepts undefined", () => {

@@ -8,6 +8,10 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createMetaClient } from "../api/meta-client.js";
 import {
+  CREATE_ANNOTATIONS,
+  READ_ONLY_ANNOTATIONS,
+} from "../constants/index.js";
+import {
   accountIdSchema,
   createLimitSchema,
   userIdSchema,
@@ -23,13 +27,14 @@ export function registerCreativeTools(server: McpServer): void {
    * List ad creatives for an ad account
    */
   server.tool(
-    "get_ad_creatives",
+    "meta_get_ad_creatives",
     "List ad creatives for an ad account",
     {
       account_id: accountIdSchema,
       limit: createLimitSchema("creatives"),
       user_id: userIdSchema,
     },
+    READ_ONLY_ANNOTATIONS,
     async ({ account_id, limit, user_id }) => {
       try {
         const normalizedId = normalizeAccountId(account_id);
@@ -50,7 +55,7 @@ export function registerCreativeTools(server: McpServer): void {
    * Create a new ad creative
    */
   server.tool(
-    "create_ad_creative",
+    "meta_create_ad_creative",
     "Create a new ad creative for use in ads",
     {
       account_id: accountIdSchema,
@@ -62,6 +67,7 @@ export function registerCreativeTools(server: McpServer): void {
         ),
       user_id: userIdSchema,
     },
+    CREATE_ANNOTATIONS,
     async ({ account_id, name, object_story_spec, user_id }) => {
       try {
         const normalizedId = normalizeAccountId(account_id);

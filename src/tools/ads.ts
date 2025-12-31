@@ -7,7 +7,12 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createMetaClient } from "../api/meta-client.js";
-import { AD_STATUSES } from "../constants/index.js";
+import {
+  AD_STATUSES,
+  CREATE_ANNOTATIONS,
+  READ_ONLY_ANNOTATIONS,
+  UPDATE_ANNOTATIONS,
+} from "../constants/index.js";
 import {
   accountIdSchema,
   createLimitSchema,
@@ -24,7 +29,7 @@ export function registerAdTools(server: McpServer): void {
    * List ads for an ad account
    */
   server.tool(
-    "get_ads",
+    "meta_get_ads",
     "List ads for an ad account with optional filtering",
     {
       account_id: accountIdSchema,
@@ -32,6 +37,7 @@ export function registerAdTools(server: McpServer): void {
       adset_id: z.string().optional().describe("Filter by ad set ID"),
       user_id: userIdSchema,
     },
+    READ_ONLY_ANNOTATIONS,
     async ({ account_id, limit, adset_id, user_id }) => {
       try {
         const normalizedId = normalizeAccountId(account_id);
@@ -55,12 +61,13 @@ export function registerAdTools(server: McpServer): void {
    * Get detailed information about a specific ad
    */
   server.tool(
-    "get_ad_details",
+    "meta_get_ad_details",
     "Get detailed information about a specific ad",
     {
       ad_id: z.string().describe("Ad ID"),
       user_id: userIdSchema,
     },
+    READ_ONLY_ANNOTATIONS,
     async ({ ad_id, user_id }) => {
       try {
         const client = createMetaClient({ userId: user_id ?? "default" });
@@ -77,7 +84,7 @@ export function registerAdTools(server: McpServer): void {
    * Create a new ad
    */
   server.tool(
-    "create_ad",
+    "meta_create_ad",
     "Create a new ad within an ad set",
     {
       account_id: accountIdSchema,
@@ -97,6 +104,7 @@ export function registerAdTools(server: McpServer): void {
         .describe("Initial ad status (default: PAUSED)"),
       user_id: userIdSchema,
     },
+    CREATE_ANNOTATIONS,
     async ({
       account_id,
       name,
@@ -144,7 +152,7 @@ export function registerAdTools(server: McpServer): void {
    * Update an existing ad
    */
   server.tool(
-    "update_ad",
+    "meta_update_ad",
     "Update an existing ad's settings",
     {
       ad_id: z.string().describe("Ad ID to update"),
@@ -152,6 +160,7 @@ export function registerAdTools(server: McpServer): void {
       status: z.enum(AD_STATUSES).optional().describe("New ad status"),
       user_id: userIdSchema,
     },
+    UPDATE_ANNOTATIONS,
     async ({ ad_id, name, status, user_id }) => {
       try {
         const client = createMetaClient({ userId: user_id ?? "default" });

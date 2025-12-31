@@ -7,7 +7,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createMetaClient } from "../api/meta-client.js";
-import { TARGETING_TYPES } from "../constants/index.js";
+import { READ_ONLY_ANNOTATIONS, TARGETING_TYPES } from "../constants/index.js";
 import {
   accountIdSchema,
   createLimitSchema,
@@ -25,7 +25,7 @@ export function registerTargetingTools(server: McpServer): void {
    * Search for targeting options
    */
   server.tool(
-    "search_targeting",
+    "meta_search_targeting",
     "Search for targeting options by type (interests, locations, demographics, etc.)",
     {
       type: z
@@ -37,6 +37,7 @@ export function registerTargetingTools(server: McpServer): void {
       limit: createLimitSchema("results"),
       user_id: userIdSchema,
     },
+    READ_ONLY_ANNOTATIONS,
     async ({ type, query, limit, user_id }) => {
       try {
         const client = createMetaClient({ userId: user_id ?? "default" });
@@ -57,7 +58,7 @@ export function registerTargetingTools(server: McpServer): void {
    * Get reach estimate for targeting
    */
   server.tool(
-    "get_reach_estimate",
+    "meta_get_reach_estimate",
     "Get estimated reach for a targeting specification",
     {
       account_id: accountIdSchema,
@@ -66,6 +67,7 @@ export function registerTargetingTools(server: McpServer): void {
       ),
       user_id: userIdSchema,
     },
+    READ_ONLY_ANNOTATIONS,
     async ({ account_id, targeting, user_id }) => {
       try {
         const normalizedId = normalizeAccountId(account_id);

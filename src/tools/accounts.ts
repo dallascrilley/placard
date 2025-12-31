@@ -6,6 +6,7 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { createMetaClient } from "../api/meta-client.js";
+import { READ_ONLY_ANNOTATIONS } from "../constants/index.js";
 import {
   accountIdSchema,
   createLimitSchema,
@@ -22,12 +23,13 @@ export function registerAccountTools(server: McpServer): void {
    * List all ad accounts accessible by the authenticated user
    */
   server.tool(
-    "get_ad_accounts",
+    "meta_get_ad_accounts",
     "List all ad accounts accessible by the authenticated user",
     {
       limit: createLimitSchema("accounts"),
       user_id: userIdSchema,
     },
+    READ_ONLY_ANNOTATIONS,
     async ({ limit, user_id }) => {
       try {
         const client = createMetaClient({ userId: user_id ?? "default" });
@@ -47,12 +49,13 @@ export function registerAccountTools(server: McpServer): void {
    * Get detailed information about a specific ad account
    */
   server.tool(
-    "get_account_info",
+    "meta_get_account_info",
     "Get detailed information about a specific ad account",
     {
       account_id: accountIdSchema,
       user_id: userIdSchema,
     },
+    READ_ONLY_ANNOTATIONS,
     async ({ account_id, user_id }) => {
       try {
         const normalizedId = normalizeAccountId(account_id);

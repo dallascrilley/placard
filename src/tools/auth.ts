@@ -1,19 +1,25 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getDefaultMetaAuth } from "../api/auth.js";
+import {
+  LOGOUT_ANNOTATIONS,
+  READ_ONLY_ANNOTATIONS,
+} from "../constants/index.js";
 
 export function registerAuthTools(server: McpServer): void {
   const auth = getDefaultMetaAuth();
 
   // Get login link for OAuth flow
   server.tool(
-    "get_login_link",
+    "meta_get_login_link",
+    "Get a login link for Meta Ads OAuth authentication",
     {
       user_id: z
         .string()
         .optional()
         .describe("User identifier for token storage. Defaults to 'default'."),
     },
+    READ_ONLY_ANNOTATIONS,
     async ({ user_id }) => {
       const userId = user_id ?? "default";
 
@@ -86,13 +92,15 @@ export function registerAuthTools(server: McpServer): void {
 
   // Check authentication status
   server.tool(
-    "check_auth_status",
+    "meta_check_auth_status",
+    "Check the current Meta Ads authentication status",
     {
       user_id: z
         .string()
         .optional()
         .describe("User identifier to check. Defaults to 'default'."),
     },
+    READ_ONLY_ANNOTATIONS,
     async ({ user_id }) => {
       const userId = user_id ?? "default";
       const status = await auth.checkAuthStatus(userId);
@@ -154,13 +162,15 @@ export function registerAuthTools(server: McpServer): void {
 
   // Logout / revoke token
   server.tool(
-    "logout",
+    "meta_logout",
+    "Logout and revoke the Meta Ads access token",
     {
       user_id: z
         .string()
         .optional()
         .describe("User identifier to logout. Defaults to 'default'."),
     },
+    LOGOUT_ANNOTATIONS,
     async ({ user_id }) => {
       const userId = user_id ?? "default";
       const success = auth.logout(userId);

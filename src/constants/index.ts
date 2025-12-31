@@ -5,6 +5,15 @@
  * to ensure consistency and eliminate duplication.
  */
 
+// Re-export tool annotations
+export {
+  READ_ONLY_ANNOTATIONS,
+  CREATE_ANNOTATIONS,
+  UPDATE_ANNOTATIONS,
+  LOGOUT_ANNOTATIONS,
+  HEALTH_CHECK_ANNOTATIONS,
+} from "./annotations.js";
+
 // =============================================================================
 // Insights Constants
 // =============================================================================

@@ -11,7 +11,10 @@ import {
   ADSET_STATUSES,
   BID_STRATEGIES,
   BILLING_EVENTS,
+  CREATE_ANNOTATIONS,
   OPTIMIZATION_GOALS,
+  READ_ONLY_ANNOTATIONS,
+  UPDATE_ANNOTATIONS,
 } from "../constants/index.js";
 import {
   accountIdSchema,
@@ -33,7 +36,7 @@ export function registerAdSetTools(server: McpServer): void {
    * List ad sets for an ad account
    */
   server.tool(
-    "get_adsets",
+    "meta_get_adsets",
     "List ad sets for an ad account with optional filtering",
     {
       account_id: accountIdSchema,
@@ -41,6 +44,7 @@ export function registerAdSetTools(server: McpServer): void {
       campaign_id: z.string().optional().describe("Filter by campaign ID"),
       user_id: userIdSchema,
     },
+    READ_ONLY_ANNOTATIONS,
     async ({ account_id, limit, campaign_id, user_id }) => {
       try {
         const normalizedId = normalizeAccountId(account_id);
@@ -64,12 +68,13 @@ export function registerAdSetTools(server: McpServer): void {
    * Get detailed information about a specific ad set
    */
   server.tool(
-    "get_adset_details",
+    "meta_get_adset_details",
     "Get detailed information about a specific ad set",
     {
       adset_id: z.string().describe("Ad set ID"),
       user_id: userIdSchema,
     },
+    READ_ONLY_ANNOTATIONS,
     async ({ adset_id, user_id }) => {
       try {
         const client = createMetaClient({ userId: user_id ?? "default" });
@@ -86,7 +91,7 @@ export function registerAdSetTools(server: McpServer): void {
    * Create a new ad set
    */
   server.tool(
-    "create_adset",
+    "meta_create_adset",
     "Create a new ad set within a campaign",
     {
       account_id: accountIdSchema,
@@ -117,6 +122,7 @@ export function registerAdSetTools(server: McpServer): void {
       end_time: z.string().optional().describe("End time in ISO 8601 format"),
       user_id: userIdSchema,
     },
+    CREATE_ANNOTATIONS,
     async ({
       account_id,
       name,
@@ -166,7 +172,7 @@ export function registerAdSetTools(server: McpServer): void {
    * Update an existing ad set
    */
   server.tool(
-    "update_adset",
+    "meta_update_adset",
     "Update an existing ad set's settings",
     {
       adset_id: z.string().describe("Ad set ID to update"),
@@ -191,6 +197,7 @@ export function registerAdSetTools(server: McpServer): void {
         .describe("New bid strategy"),
       user_id: userIdSchema,
     },
+    UPDATE_ANNOTATIONS,
     async ({
       adset_id,
       name,

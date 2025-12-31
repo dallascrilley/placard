@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { HEALTH_CHECK_ANNOTATIONS } from "./constants/index.js";
 import { registerAccountTools } from "./tools/accounts.js";
 import { registerAdTools } from "./tools/ads.js";
 import { registerAdSetTools } from "./tools/adsets.js";
@@ -19,10 +20,12 @@ export function createServer(): McpServer {
 
   // Register a health check tool for initial testing
   server.tool(
-    "health_check",
+    "meta_health_check",
+    "Check if the Meta Ads MCP server is running and healthy",
     {
       // No parameters needed
     },
+    HEALTH_CHECK_ANNOTATIONS,
     async () => {
       return {
         content: [

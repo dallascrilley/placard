@@ -10,7 +10,10 @@ import { createMetaClient } from "../api/meta-client.js";
 import {
   CAMPAIGN_OBJECTIVES,
   CAMPAIGN_STATUSES,
+  CREATE_ANNOTATIONS,
+  READ_ONLY_ANNOTATIONS,
   SPECIAL_AD_CATEGORIES,
+  UPDATE_ANNOTATIONS,
 } from "../constants/index.js";
 import {
   accountIdSchema,
@@ -30,7 +33,7 @@ export function registerCampaignTools(server: McpServer): void {
    * List campaigns for an ad account
    */
   server.tool(
-    "get_campaigns",
+    "meta_get_campaigns",
     "List campaigns for an ad account with optional filtering",
     {
       account_id: accountIdSchema,
@@ -41,6 +44,7 @@ export function registerCampaignTools(server: McpServer): void {
         .describe("Filter by campaign status"),
       user_id: userIdSchema,
     },
+    READ_ONLY_ANNOTATIONS,
     async ({ account_id, limit, status, user_id }) => {
       try {
         const normalizedId = normalizeAccountId(account_id);
@@ -64,12 +68,13 @@ export function registerCampaignTools(server: McpServer): void {
    * Get detailed information about a specific campaign
    */
   server.tool(
-    "get_campaign_details",
+    "meta_get_campaign_details",
     "Get detailed information about a specific campaign",
     {
       campaign_id: z.string().describe("Campaign ID"),
       user_id: userIdSchema,
     },
+    READ_ONLY_ANNOTATIONS,
     async ({ campaign_id, user_id }) => {
       try {
         const client = createMetaClient({ userId: user_id ?? "default" });
@@ -86,7 +91,7 @@ export function registerCampaignTools(server: McpServer): void {
    * Create a new campaign
    */
   server.tool(
-    "create_campaign",
+    "meta_create_campaign",
     "Create a new advertising campaign",
     {
       account_id: accountIdSchema,
@@ -108,6 +113,7 @@ export function registerCampaignTools(server: McpServer): void {
       lifetime_budget: lifetimeBudgetSchema,
       user_id: userIdSchema,
     },
+    CREATE_ANNOTATIONS,
     async ({
       account_id,
       name,
@@ -153,7 +159,7 @@ export function registerCampaignTools(server: McpServer): void {
    * Update an existing campaign
    */
   server.tool(
-    "update_campaign",
+    "meta_update_campaign",
     "Update an existing campaign's settings",
     {
       campaign_id: z.string().describe("Campaign ID to update"),
@@ -170,6 +176,7 @@ export function registerCampaignTools(server: McpServer): void {
       ),
       user_id: userIdSchema,
     },
+    UPDATE_ANNOTATIONS,
     async ({
       campaign_id,
       name,

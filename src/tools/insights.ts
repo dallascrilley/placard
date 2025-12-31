@@ -7,7 +7,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createMetaClient } from "../api/meta-client.js";
-import { DEFAULT_INSIGHT_FIELDS, INSIGHT_LEVELS } from "../constants/index.js";
+import {
+  DEFAULT_INSIGHT_FIELDS,
+  INSIGHT_LEVELS,
+  READ_ONLY_ANNOTATIONS,
+} from "../constants/index.js";
 import {
   accountIdSchema,
   breakdownSchema,
@@ -27,7 +31,7 @@ export function registerInsightsTools(server: McpServer): void {
    * Get insights for an ad account
    */
   server.tool(
-    "get_account_insights",
+    "meta_get_account_insights",
     "Get performance insights for an entire ad account",
     {
       account_id: accountIdSchema,
@@ -37,6 +41,7 @@ export function registerInsightsTools(server: McpServer): void {
       fields: fieldsSchema,
       user_id: userIdSchema,
     },
+    READ_ONLY_ANNOTATIONS,
     async ({
       account_id,
       date_preset,
@@ -67,7 +72,7 @@ export function registerInsightsTools(server: McpServer): void {
    * Get insights for a campaign
    */
   server.tool(
-    "get_campaign_insights",
+    "meta_get_campaign_insights",
     "Get performance insights for a specific campaign",
     {
       campaign_id: z.string().describe("Campaign ID"),
@@ -81,6 +86,7 @@ export function registerInsightsTools(server: McpServer): void {
       fields: fieldsSchema,
       user_id: userIdSchema,
     },
+    READ_ONLY_ANNOTATIONS,
     async ({
       campaign_id,
       date_preset,
@@ -111,7 +117,7 @@ export function registerInsightsTools(server: McpServer): void {
    * Get insights for an ad set
    */
   server.tool(
-    "get_adset_insights",
+    "meta_get_adset_insights",
     "Get performance insights for a specific ad set",
     {
       adset_id: z.string().describe("Ad set ID"),
@@ -121,6 +127,7 @@ export function registerInsightsTools(server: McpServer): void {
       fields: fieldsSchema,
       user_id: userIdSchema,
     },
+    READ_ONLY_ANNOTATIONS,
     async ({
       adset_id,
       date_preset,
@@ -150,7 +157,7 @@ export function registerInsightsTools(server: McpServer): void {
    * Get insights for an ad
    */
   server.tool(
-    "get_ad_insights",
+    "meta_get_ad_insights",
     "Get performance insights for a specific ad",
     {
       ad_id: z.string().describe("Ad ID"),
@@ -160,6 +167,7 @@ export function registerInsightsTools(server: McpServer): void {
       fields: fieldsSchema,
       user_id: userIdSchema,
     },
+    READ_ONLY_ANNOTATIONS,
     async ({ ad_id, date_preset, time_range, breakdown, fields, user_id }) => {
       try {
         const client = createMetaClient({ userId: user_id ?? "default" });

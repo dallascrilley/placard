@@ -162,9 +162,11 @@ export function registerCampaignTools(server: McpServer): void {
         .enum(CAMPAIGN_STATUSES)
         .optional()
         .describe("New campaign status"),
-      daily_budget: dailyBudgetSchema.describe("New daily budget in cents"),
+      daily_budget: dailyBudgetSchema.describe(
+        "New daily budget in cents (e.g., 1000 = $10.00)",
+      ),
       lifetime_budget: lifetimeBudgetSchema.describe(
-        "New lifetime budget in cents",
+        "New lifetime budget in cents (e.g., 10000 = $100.00)",
       ),
       user_id: userIdSchema,
     },

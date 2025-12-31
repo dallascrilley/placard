@@ -137,3 +137,18 @@ export const optionalTargetingSchema = z
   .record(z.unknown())
   .optional()
   .describe("New targeting specification");
+
+// =============================================================================
+// Response Format Schema
+// =============================================================================
+
+/**
+ * Response format options for tool output.
+ * JSON is structured data, Markdown is human-readable.
+ */
+export const responseFormatSchema = z
+  .enum(["json", "markdown"])
+  .optional()
+  .describe(
+    "Response format: 'json' (default) or 'markdown' for human-readable output",
+  );

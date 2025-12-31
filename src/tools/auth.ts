@@ -12,7 +12,44 @@ export function registerAuthTools(server: McpServer): void {
   // Get login link for OAuth flow
   server.tool(
     "meta_get_login_link",
-    "Get a login link for Meta Ads OAuth authentication",
+    `Get a login link for Meta Ads OAuth authentication.
+
+Initiates the OAuth 2.0 authentication flow for Meta Marketing API access. Returns a login URL that users must visit to grant permissions. If already authenticated, returns current authentication status instead.
+
+Args:
+  - user_id (string, optional): User identifier for token storage. Defaults to 'default' for single-user setups.
+
+Returns:
+  If authenticated:
+  {
+    "status": "already_authenticated",
+    "message": "You are already authenticated with Meta Ads.",
+    "user_id": "default",
+    "expires_at": 1234567890,
+    "expires_info": "Expires: 2025-01-01T00:00:00.000Z",
+    "scopes": ["ads_read", "ads_management"]
+  }
+  
+  If not authenticated:
+  {
+    "status": "authentication_required",
+    "message": "Click the link below to authenticate with Meta Ads.",
+    "login_url": "https://www.facebook.com/v22.0/dialog/oauth?...",
+    "markdown_link": "[Authenticate with Meta Ads](https://...)",
+    "state": "random_state_string",
+    "user_id": "default",
+    "callback_url": "https://meta.realnewspr.com/callback",
+    "scopes_requested": ["ads_read", "ads_management"],
+    "token_duration": "60 days",
+    "instructions": ["1. Click the login link above", ...]
+  }
+
+Examples:
+  - Default user: { "user_id": "default" }
+  - Multi-user: { "user_id": "user_123" }
+
+Errors:
+  - No API errors - returns status information only`,
     {
       user_id: z
         .string()
@@ -93,7 +130,39 @@ export function registerAuthTools(server: McpServer): void {
   // Check authentication status
   server.tool(
     "meta_check_auth_status",
-    "Check the current Meta Ads authentication status",
+    `Check the current Meta Ads authentication status.
+
+Verifies whether a user is authenticated and returns token expiration information, scopes, and validity status. Use this to check authentication before making API calls.
+
+Args:
+  - user_id (string, optional): User identifier to check. Defaults to 'default'.
+
+Returns:
+  If authenticated:
+  {
+    "status": "authenticated",
+    "message": "Successfully authenticated with Meta Ads.",
+    "user_id": "default",
+    "is_valid": true,
+    "scopes": ["ads_read", "ads_management"],
+    "expires_at": 1234567890,
+    "expires_at_iso": "2025-01-01T00:00:00.000Z",
+    "expires_in_days": 45
+  }
+  
+  If not authenticated:
+  {
+    "status": "not_authenticated",
+    "message": "Not authenticated. Use get_login_link to start OAuth flow.",
+    "user_id": "default"
+  }
+
+Examples:
+  - Check default user: { "user_id": "default" }
+  - Check specific user: { "user_id": "user_123" }
+
+Errors:
+  - No API errors - returns status information only`,
     {
       user_id: z
         .string()
@@ -163,7 +232,34 @@ export function registerAuthTools(server: McpServer): void {
   // Logout / revoke token
   server.tool(
     "meta_logout",
-    "Logout and revoke the Meta Ads access token",
+    `Logout and revoke the Meta Ads access token.
+
+Removes the stored access token for a user and optionally revokes it with Meta's API. After logout, the user must re-authenticate using get_login_link.
+
+Args:
+  - user_id (string, optional): User identifier to logout. Defaults to 'default'.
+
+Returns:
+  If logout successful:
+  {
+    "status": "logged_out",
+    "message": "Successfully logged out and revoked token.",
+    "user_id": "default"
+  }
+  
+  If no session found:
+  {
+    "status": "not_found",
+    "message": "No active session found for this user.",
+    "user_id": "default"
+  }
+
+Examples:
+  - Logout default user: { "user_id": "default" }
+  - Logout specific user: { "user_id": "user_123" }
+
+Errors:
+  - No API errors - returns status information only`,
     {
       user_id: z
         .string()

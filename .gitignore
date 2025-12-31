@@ -35,3 +35,7 @@ coverage/
 # Cache
 .cache/
 .claude/cache/
+.claude/tsc-cache/
+
+# Tooling state
+.reviewrover/

@@ -7,6 +7,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createMetaClient } from "../api/meta-client.js";
+import { normalizeAccountId } from "../utils/id-normalizer.js";
+import {
+  createErrorResponse,
+  createSuccessResponse,
+} from "../utils/tool-responses.js";
 
 export function registerCreativeTools(server: McpServer): void {
   /**
@@ -33,48 +38,16 @@ export function registerCreativeTools(server: McpServer): void {
     },
     async ({ account_id, limit, user_id }) => {
       try {
-        const normalizedId = account_id.startsWith("act_")
-          ? account_id
-          : `act_${account_id}`;
-
+        const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
         const response = await client.getAdCreatives(normalizedId, limit ?? 25);
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: true,
-                  creatives: response.data,
-                  paging: response.paging,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({
+          creatives: response.data,
+          paging: response.paging,
+        });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );
@@ -102,10 +75,7 @@ export function registerCreativeTools(server: McpServer): void {
     },
     async ({ account_id, name, object_story_spec, user_id }) => {
       try {
-        const normalizedId = account_id.startsWith("act_")
-          ? account_id
-          : `act_${account_id}`;
-
+        const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
 
         const result = await client.createAdCreative(normalizedId, {
@@ -113,41 +83,12 @@ export function registerCreativeTools(server: McpServer): void {
           object_story_spec,
         });
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: true,
-                  creative_id: result.id,
-                  message: `Creative "${name}" created successfully`,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({
+          creative_id: result.id,
+          message: `Creative "${name}" created successfully`,
+        });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );

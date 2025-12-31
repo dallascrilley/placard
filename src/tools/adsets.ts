@@ -7,63 +7,17 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createMetaClient } from "../api/meta-client.js";
-
-// Valid optimization goals
-const OPTIMIZATION_GOALS = [
-  "NONE",
-  "APP_INSTALLS",
-  "AD_RECALL_LIFT",
-  "ENGAGED_USERS",
-  "EVENT_RESPONSES",
-  "IMPRESSIONS",
-  "LEAD_GENERATION",
-  "QUALITY_LEAD",
-  "LINK_CLICKS",
-  "OFFSITE_CONVERSIONS",
-  "PAGE_LIKES",
-  "POST_ENGAGEMENT",
-  "QUALITY_CALL",
-  "REACH",
-  "LANDING_PAGE_VIEWS",
-  "VISIT_INSTAGRAM_PROFILE",
-  "VALUE",
-  "THRUPLAY",
-  "DERIVED_EVENTS",
-  "APP_INSTALLS_AND_OFFSITE_CONVERSIONS",
-  "CONVERSATIONS",
-  "IN_APP_VALUE",
-  "MESSAGING_PURCHASE_CONVERSION",
-  "SUBSCRIBERS",
-  "REMINDERS_SET",
-  "MEANINGFUL_CALL_ATTEMPT",
-  "PROFILE_VISIT",
-] as const;
-
-// Valid billing events
-const BILLING_EVENTS = [
-  "APP_INSTALLS",
-  "CLICKS",
-  "IMPRESSIONS",
-  "LINK_CLICKS",
-  "NONE",
-  "OFFER_CLAIMS",
-  "PAGE_LIKES",
-  "POST_ENGAGEMENT",
-  "THRUPLAY",
-  "PURCHASE",
-  "LISTING_INTERACTION",
-] as const;
-
-// Valid bid strategies
-const BID_STRATEGIES = [
-  "LOWEST_COST_WITHOUT_CAP",
-  "LOWEST_COST_WITH_BID_CAP",
-  "COST_CAP",
-  "LOWEST_COST_WITH_MIN_ROAS",
-] as const;
-
-// Valid ad set statuses
-const ADSET_STATUSES = ["ACTIVE", "PAUSED", "DELETED", "ARCHIVED"] as const;
+import {
+  ADSET_STATUSES,
+  BID_STRATEGIES,
+  BILLING_EVENTS,
+  OPTIMIZATION_GOALS,
+} from "../constants/index.js";
+import { normalizeAccountId } from "../utils/id-normalizer.js";
+import {
+  createErrorResponse,
+  createSuccessResponse,
+} from "../utils/tool-responses.js";
 
 export function registerAdSetTools(server: McpServer): void {
   /**
@@ -91,51 +45,19 @@ export function registerAdSetTools(server: McpServer): void {
     },
     async ({ account_id, limit, campaign_id, user_id }) => {
       try {
-        const normalizedId = account_id.startsWith("act_")
-          ? account_id
-          : `act_${account_id}`;
-
+        const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
         const response = await client.getAdSets(normalizedId, {
           limit: limit ?? 25,
           campaign_id,
         });
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: true,
-                  adsets: response.data,
-                  paging: response.paging,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({
+          adsets: response.data,
+          paging: response.paging,
+        });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );
@@ -158,40 +80,9 @@ export function registerAdSetTools(server: McpServer): void {
         const client = createMetaClient({ userId: user_id ?? "default" });
         const adset = await client.getAdSetDetails(adset_id);
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: true,
-                  adset,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({ adset });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );
@@ -265,10 +156,7 @@ export function registerAdSetTools(server: McpServer): void {
       user_id,
     }) => {
       try {
-        const normalizedId = account_id.startsWith("act_")
-          ? account_id
-          : `act_${account_id}`;
-
+        const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
 
         const result = await client.createAdSet(normalizedId, {
@@ -286,41 +174,12 @@ export function registerAdSetTools(server: McpServer): void {
           end_time,
         });
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: true,
-                  adset_id: result.id,
-                  message: `Ad set "${name}" created successfully`,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({
+          adset_id: result.id,
+          message: `Ad set "${name}" created successfully`,
+        });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );
@@ -390,40 +249,11 @@ export function registerAdSetTools(server: McpServer): void {
           bid_strategy,
         });
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: result.success,
-                  message: `Ad set ${adset_id} updated successfully`,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({
+          message: `Ad set ${adset_id} updated successfully`,
+        });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );

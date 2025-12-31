@@ -7,24 +7,12 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createMetaClient } from "../api/meta-client.js";
-
-// Valid targeting search types
-const TARGETING_TYPES = [
-  "adinterest",
-  "adinterestsuggestion",
-  "adinterestvalid",
-  "adlocale",
-  "adTargetingCategory",
-  "adgeolocation",
-  "adgeolocationmeta",
-  "adradiussuggestion",
-  "adworkemployer",
-  "adworkposition",
-  "adeducationschool",
-  "adeducationmajor",
-  "adrelationshipstatus",
-  "adindustry",
-] as const;
+import { TARGETING_TYPES } from "../constants/index.js";
+import { normalizeAccountId } from "../utils/id-normalizer.js";
+import {
+  createErrorResponse,
+  createSuccessResponse,
+} from "../utils/tool-responses.js";
 
 export function registerTargetingTools(server: McpServer): void {
   /**
@@ -57,42 +45,13 @@ export function registerTargetingTools(server: McpServer): void {
         const client = createMetaClient({ userId: user_id ?? "default" });
         const response = await client.searchTargeting(type, query, limit ?? 25);
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: true,
-                  targeting_type: type,
-                  query,
-                  results: response.data,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({
+          targeting_type: type,
+          query,
+          results: response.data,
+        });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );
@@ -119,47 +78,15 @@ export function registerTargetingTools(server: McpServer): void {
     },
     async ({ account_id, targeting, user_id }) => {
       try {
-        const normalizedId = account_id.startsWith("act_")
-          ? account_id
-          : `act_${account_id}`;
-
+        const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
         const response = await client.getReachEstimate(normalizedId, targeting);
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: true,
-                  reach_estimate: response.data,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({
+          reach_estimate: response.data,
+        });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );

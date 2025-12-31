@@ -101,10 +101,8 @@ export function registerAdSetTools(server: McpServer): void {
         .enum(["ACTIVE", "PAUSED"])
         .optional()
         .describe("Initial ad set status (default: PAUSED)"),
-      daily_budget: dailyBudgetSchema.describe("Daily budget in cents"),
-      lifetime_budget: lifetimeBudgetSchema.describe(
-        "Lifetime budget in cents",
-      ),
+      daily_budget: dailyBudgetSchema,
+      lifetime_budget: lifetimeBudgetSchema,
       bid_amount: z
         .number()
         .int()
@@ -174,9 +172,11 @@ export function registerAdSetTools(server: McpServer): void {
       adset_id: z.string().describe("Ad set ID to update"),
       name: z.string().min(1).optional().describe("New ad set name"),
       status: z.enum(ADSET_STATUSES).optional().describe("New ad set status"),
-      daily_budget: dailyBudgetSchema.describe("New daily budget in cents"),
+      daily_budget: dailyBudgetSchema.describe(
+        "New daily budget in cents (e.g., 1000 = $10.00)",
+      ),
       lifetime_budget: lifetimeBudgetSchema.describe(
-        "New lifetime budget in cents",
+        "New lifetime budget in cents (e.g., 10000 = $100.00)",
       ),
       targeting: optionalTargetingSchema,
       bid_amount: z

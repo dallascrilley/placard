@@ -64,10 +64,14 @@ export const datePresetSchema = z
  * Custom date range for insights queries.
  * Overrides date_preset when provided.
  */
+const dateStringSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
+
 export const timeRangeSchema = z
   .object({
-    since: z.string().describe("Start date in YYYY-MM-DD format"),
-    until: z.string().describe("End date in YYYY-MM-DD format"),
+    since: dateStringSchema.describe("Start date in YYYY-MM-DD format"),
+    until: dateStringSchema.describe("End date in YYYY-MM-DD format"),
   })
   .optional()
   .describe("Custom date range (overrides date_preset)");

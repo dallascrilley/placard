@@ -124,6 +124,26 @@ describe("Common Schemas", () => {
         false,
       );
     });
+
+    it("rejects malformed date formats", () => {
+      // Wrong format - not YYYY-MM-DD
+      expect(
+        timeRangeSchema.safeParse({ since: "01-01-2024", until: "2024-12-31" })
+          .success,
+      ).toBe(false);
+      expect(
+        timeRangeSchema.safeParse({ since: "2024/01/01", until: "2024-12-31" })
+          .success,
+      ).toBe(false);
+      expect(
+        timeRangeSchema.safeParse({ since: "2024-1-1", until: "2024-12-31" })
+          .success,
+      ).toBe(false);
+      expect(
+        timeRangeSchema.safeParse({ since: "Jan 1, 2024", until: "2024-12-31" })
+          .success,
+      ).toBe(false);
+    });
   });
 
   describe("breakdownSchema", () => {

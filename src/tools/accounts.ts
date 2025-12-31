@@ -1,0 +1,137 @@
+/**
+ * Ad Account Tools
+ *
+ * MCP tools for managing Meta ad accounts.
+ */
+
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+import { createMetaClient } from "../api/meta-client.js";
+
+export function registerAccountTools(server: McpServer): void {
+  /**
+   * List all ad accounts accessible by the authenticated user
+   */
+  server.tool(
+    "get_ad_accounts",
+    "List all ad accounts accessible by the authenticated user",
+    {
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .optional()
+        .describe("Maximum number of accounts to return (default: 25)"),
+      user_id: z
+        .string()
+        .optional()
+        .describe("User ID for multi-user authentication (default: 'default')"),
+    },
+    async ({ limit, user_id }) => {
+      try {
+        const client = createMetaClient({ userId: user_id ?? "default" });
+        const response = await client.getAdAccounts(limit ?? 25);
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  success: true,
+                  accounts: response.data,
+                  paging: response.paging,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Unknown error";
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  success: false,
+                  error: message,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  /**
+   * Get detailed information about a specific ad account
+   */
+  server.tool(
+    "get_account_info",
+    "Get detailed information about a specific ad account",
+    {
+      account_id: z
+        .string()
+        .describe("Ad account ID (with or without 'act_' prefix)"),
+      user_id: z
+        .string()
+        .optional()
+        .describe("User ID for multi-user authentication (default: 'default')"),
+    },
+    async ({ account_id, user_id }) => {
+      try {
+        // Ensure account_id has the act_ prefix
+        const normalizedId = account_id.startsWith("act_")
+          ? account_id
+          : `act_${account_id}`;
+
+        const client = createMetaClient({ userId: user_id ?? "default" });
+        const account = await client.getAccountInfo(normalizedId);
+
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  success: true,
+                  account,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Unknown error";
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify(
+                {
+                  success: false,
+                  error: message,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+}

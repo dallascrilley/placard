@@ -7,28 +7,16 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createMetaClient } from "../api/meta-client.js";
-
-// Valid campaign objectives for Meta API v22.0
-const CAMPAIGN_OBJECTIVES = [
-  "OUTCOME_AWARENESS",
-  "OUTCOME_ENGAGEMENT",
-  "OUTCOME_LEADS",
-  "OUTCOME_SALES",
-  "OUTCOME_TRAFFIC",
-  "OUTCOME_APP_PROMOTION",
-] as const;
-
-// Valid campaign statuses
-const CAMPAIGN_STATUSES = ["ACTIVE", "PAUSED", "DELETED", "ARCHIVED"] as const;
-
-// Special ad categories
-const SPECIAL_AD_CATEGORIES = [
-  "NONE",
-  "EMPLOYMENT",
-  "HOUSING",
-  "CREDIT",
-  "ISSUES_ELECTIONS_POLITICS",
-] as const;
+import {
+  CAMPAIGN_OBJECTIVES,
+  CAMPAIGN_STATUSES,
+  SPECIAL_AD_CATEGORIES,
+} from "../constants/index.js";
+import { normalizeAccountId } from "../utils/id-normalizer.js";
+import {
+  createErrorResponse,
+  createSuccessResponse,
+} from "../utils/tool-responses.js";
 
 export function registerCampaignTools(server: McpServer): void {
   /**
@@ -59,51 +47,19 @@ export function registerCampaignTools(server: McpServer): void {
     },
     async ({ account_id, limit, status, user_id }) => {
       try {
-        const normalizedId = account_id.startsWith("act_")
-          ? account_id
-          : `act_${account_id}`;
-
+        const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
         const response = await client.getCampaigns(normalizedId, {
           limit: limit ?? 25,
           status,
         });
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: true,
-                  campaigns: response.data,
-                  paging: response.paging,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({
+          campaigns: response.data,
+          paging: response.paging,
+        });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );
@@ -126,40 +82,9 @@ export function registerCampaignTools(server: McpServer): void {
         const client = createMetaClient({ userId: user_id ?? "default" });
         const campaign = await client.getCampaignDetails(campaign_id);
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: true,
-                  campaign,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({ campaign });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );
@@ -216,10 +141,7 @@ export function registerCampaignTools(server: McpServer): void {
       user_id,
     }) => {
       try {
-        const normalizedId = account_id.startsWith("act_")
-          ? account_id
-          : `act_${account_id}`;
-
+        const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
 
         // Filter out "NONE" from special_ad_categories if present
@@ -239,41 +161,12 @@ export function registerCampaignTools(server: McpServer): void {
           lifetime_budget,
         });
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: true,
-                  campaign_id: result.id,
-                  message: `Campaign "${name}" created successfully`,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({
+          campaign_id: result.id,
+          message: `Campaign "${name}" created successfully`,
+        });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );
@@ -326,40 +219,11 @@ export function registerCampaignTools(server: McpServer): void {
           lifetime_budget,
         });
 
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: result.success,
-                  message: `Campaign ${campaign_id} updated successfully`,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
+        return createSuccessResponse({
+          message: `Campaign ${campaign_id} updated successfully`,
+        });
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Unknown error";
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  success: false,
-                  error: message,
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-          isError: true,
-        };
+        return createErrorResponse(error);
       }
     },
   );

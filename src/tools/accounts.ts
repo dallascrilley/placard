@@ -5,8 +5,12 @@
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import { createMetaClient } from "../api/meta-client.js";
+import {
+  accountIdSchema,
+  createLimitSchema,
+  userIdSchema,
+} from "../schemas/index.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
 import {
   createErrorResponse,
@@ -21,17 +25,8 @@ export function registerAccountTools(server: McpServer): void {
     "get_ad_accounts",
     "List all ad accounts accessible by the authenticated user",
     {
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .optional()
-        .describe("Maximum number of accounts to return (default: 25)"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      limit: createLimitSchema("accounts"),
+      user_id: userIdSchema,
     },
     async ({ limit, user_id }) => {
       try {
@@ -55,13 +50,8 @@ export function registerAccountTools(server: McpServer): void {
     "get_account_info",
     "Get detailed information about a specific ad account",
     {
-      account_id: z
-        .string()
-        .describe("Ad account ID (with or without 'act_' prefix)"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      account_id: accountIdSchema,
+      user_id: userIdSchema,
     },
     async ({ account_id, user_id }) => {
       try {

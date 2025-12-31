@@ -7,6 +7,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createMetaClient } from "../api/meta-client.js";
+import {
+  accountIdSchema,
+  createLimitSchema,
+  userIdSchema,
+} from "../schemas/index.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
 import {
   createErrorResponse,
@@ -21,20 +26,9 @@ export function registerCreativeTools(server: McpServer): void {
     "get_ad_creatives",
     "List ad creatives for an ad account",
     {
-      account_id: z
-        .string()
-        .describe("Ad account ID (with or without 'act_' prefix)"),
-      limit: z
-        .number()
-        .int()
-        .min(1)
-        .max(100)
-        .optional()
-        .describe("Maximum number of creatives to return (default: 25)"),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      account_id: accountIdSchema,
+      limit: createLimitSchema("creatives"),
+      user_id: userIdSchema,
     },
     async ({ account_id, limit, user_id }) => {
       try {
@@ -59,19 +53,14 @@ export function registerCreativeTools(server: McpServer): void {
     "create_ad_creative",
     "Create a new ad creative for use in ads",
     {
-      account_id: z
-        .string()
-        .describe("Ad account ID (with or without 'act_' prefix)"),
+      account_id: accountIdSchema,
       name: z.string().min(1).describe("Creative name"),
       object_story_spec: z
         .record(z.unknown())
         .describe(
           "Object story specification defining the creative content (page_id, link_data, etc.)",
         ),
-      user_id: z
-        .string()
-        .optional()
-        .describe("User ID for multi-user authentication (default: 'default')"),
+      user_id: userIdSchema,
     },
     async ({ account_id, name, object_story_spec, user_id }) => {
       try {

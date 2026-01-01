@@ -54,6 +54,9 @@ export class MetaApiError extends Error {
   }
 
   private determineRetryable(): boolean {
+    // Transient errors are retryable regardless of error code
+    if (this.isTransient) return true;
+
     // Rate limit errors are retryable
     if (this.code === 4 || this.code === 17 || this.code === 32) return true;
     if (this.code === 613 || this.code === 80004) return true; // API rate limit

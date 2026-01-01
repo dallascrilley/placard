@@ -48,6 +48,79 @@ describe("MetaApiError", () => {
     expect(error.userMessage).toBe("Please wait before trying again");
   });
 
+  it("should parse blame_field from error_data", () => {
+    const errorBody = {
+      error: {
+        message: "Invalid parameter",
+        type: "OAuthException",
+        code: 100,
+        fbtrace_id: "trace-123",
+        error_data: '{"blame_field":"targeting"}',
+      },
+    };
+    const error = new MetaApiError(errorBody);
+
+    expect(error.blameField).toBe("targeting");
+  });
+
+  it("should handle missing error_data gracefully", () => {
+    const errorBody = {
+      error: {
+        message: "Invalid parameter",
+        type: "OAuthException",
+        code: 100,
+        fbtrace_id: "trace-123",
+      },
+    };
+    const error = new MetaApiError(errorBody);
+
+    expect(error.blameField).toBeUndefined();
+  });
+
+  it("should handle invalid JSON in error_data gracefully", () => {
+    const errorBody = {
+      error: {
+        message: "Invalid parameter",
+        type: "OAuthException",
+        code: 100,
+        fbtrace_id: "trace-123",
+        error_data: "not valid json",
+      },
+    };
+    const error = new MetaApiError(errorBody);
+
+    expect(error.blameField).toBeUndefined();
+  });
+
+  it("should parse is_transient field", () => {
+    const errorBody = {
+      error: {
+        message: "Temporary error",
+        type: "OAuthException",
+        code: 1,
+        fbtrace_id: "trace-123",
+        is_transient: true,
+      },
+    };
+    const error = new MetaApiError(errorBody);
+
+    expect(error.isTransient).toBe(true);
+  });
+
+  it("should default is_transient to false when missing", () => {
+    const errorBody = {
+      error: {
+        message: "Error",
+        type: "OAuthException",
+        code: 100,
+        fbtrace_id: "trace-123",
+      },
+    };
+    const error = new MetaApiError(errorBody);
+
+    expect(error.isTransient).toBe(false);
+  });
+
   describe("isRetryable", () => {
     it("should mark rate limit codes as retryable", () => {
       const rateLimitCodes = [4, 17, 32, 613, 80004];
@@ -113,6 +186,8 @@ describe("MetaApiError", () => {
         fbtrace_id: "trace-abc",
         userTitle: "User Title",
         userMessage: "User Message",
+        blameField: undefined,
+        isTransient: false,
         isRetryable: false,
       });
     });

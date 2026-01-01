@@ -87,7 +87,7 @@ export function registerCampaignTools(server: McpServer): void {
    */
   server.tool(
     "create_campaign",
-    "Create a new advertising campaign",
+    "Create a new advertising campaign. Requires either daily_budget OR lifetime_budget.",
     {
       account_id: accountIdSchema,
       name: z.string().min(1).describe("Campaign name"),
@@ -104,8 +104,12 @@ export function registerCampaignTools(server: McpServer): void {
         .describe(
           "Special ad categories if applicable (required for housing, employment, credit, political ads)",
         ),
-      daily_budget: dailyBudgetSchema,
-      lifetime_budget: lifetimeBudgetSchema,
+      daily_budget: dailyBudgetSchema.describe(
+        "Daily budget in cents (required if no lifetime_budget)",
+      ),
+      lifetime_budget: lifetimeBudgetSchema.describe(
+        "Lifetime budget in cents (required if no daily_budget)",
+      ),
       user_id: userIdSchema,
     },
     async ({
@@ -119,6 +123,15 @@ export function registerCampaignTools(server: McpServer): void {
       user_id,
     }) => {
       try {
+        // Validate budget requirement
+        if (daily_budget === undefined && lifetime_budget === undefined) {
+          return createErrorResponse(
+            new Error(
+              "Either daily_budget or lifetime_budget is required. Provide at least one budget type.",
+            ),
+          );
+        }
+
         const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
 

@@ -71,6 +71,7 @@ export function createErrorResponse(error: unknown): ToolResponse {
     if (error.fbtrace_id) {
       errorDetails["fbtrace_id"] = error.fbtrace_id;
     }
+    errorDetails["is_transient"] = error.isTransient;
     errorDetails["is_retryable"] = error.isRetryable;
 
     return {

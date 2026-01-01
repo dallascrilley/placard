@@ -11,7 +11,10 @@ import {
   ADSET_STATUSES,
   BID_STRATEGIES,
   BILLING_EVENTS,
+  CREATE_ANNOTATIONS,
   OPTIMIZATION_GOALS,
+  READ_ONLY_ANNOTATIONS,
+  UPDATE_ANNOTATIONS,
 } from "../constants/index.js";
 import {
   accountIdSchema,
@@ -19,6 +22,7 @@ import {
   dailyBudgetSchema,
   lifetimeBudgetSchema,
   optionalTargetingSchema,
+  responseFormatSchema,
   targetingSchema,
   userIdSchema,
 } from "../schemas/index.js";
@@ -26,6 +30,7 @@ import { normalizeAccountId } from "../utils/id-normalizer.js";
 import {
   createErrorResponse,
   createSuccessResponse,
+  enhancePagination,
 } from "../utils/tool-responses.js";
 
 export function registerAdSetTools(server: McpServer): void {
@@ -33,15 +38,59 @@ export function registerAdSetTools(server: McpServer): void {
    * List ad sets for an ad account
    */
   server.tool(
-    "get_adsets",
-    "List ad sets for an ad account with optional filtering",
+    "meta_get_adsets",
+    `List ad sets for an ad account with optional filtering.
+
+Retrieves ad sets from a Meta ad account, with optional filtering by campaign ID. Returns ad set details including targeting, budget, bid strategy, and status. Supports pagination for large result sets.
+
+Args:
+  - account_id (string, required): Ad account ID (with or without 'act_' prefix)
+  - limit (number, optional): Maximum ad sets to return, 1-100 (default: 25)
+  - campaign_id (string, optional): Filter by campaign ID to get ad sets for a specific campaign
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')
+
+Returns:
+  {
+    "success": true,
+    "adsets": [
+      {
+        "id": "123456789",
+        "name": "Ad Set 1",
+        "campaign_id": "987654321",
+        "status": "ACTIVE",
+        "daily_budget": 2500,
+        "optimization_goal": "LINK_CLICKS",
+        "billing_event": "IMPRESSIONS"
+      }
+    ],
+    "paging": {
+      "cursors": {
+        "before": "...",
+        "after": "..."
+      },
+      "next": "https://graph.facebook.com/v22.0/act_123/adsets?..."
+    }
+  }
+
+Examples:
+  - All ad sets: { "account_id": "act_123" }
+  - Filter by campaign: { "account_id": "act_123", "campaign_id": "987654321" }
+  - With limit: { "account_id": "act_123", "limit": 50 }
+
+Errors:
+  - 190: Token expired - use meta_get_login_link to re-authenticate
+  - 4/17/32: Rate limited - wait and retry
+  - 10/200/294: Permission denied - user lacks access to account`,
     {
       account_id: accountIdSchema,
       limit: createLimitSchema("ad sets"),
       campaign_id: z.string().optional().describe("Filter by campaign ID"),
       user_id: userIdSchema,
+      response_format: responseFormatSchema,
     },
-    async ({ account_id, limit, campaign_id, user_id }) => {
+    READ_ONLY_ANNOTATIONS,
+    async ({ account_id, limit, campaign_id, user_id, response_format }) => {
+      const format = response_format ?? "json";
       try {
         const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
@@ -50,12 +99,15 @@ export function registerAdSetTools(server: McpServer): void {
           campaign_id,
         });
 
-        return createSuccessResponse({
-          adsets: response.data,
-          paging: response.paging,
-        });
+        return createSuccessResponse(
+          {
+            adsets: response.data,
+            paging: enhancePagination(response.paging, response.data),
+          },
+          format,
+        );
       } catch (error) {
-        return createErrorResponse(error);
+        return createErrorResponse(error, format);
       }
     },
   );
@@ -64,20 +116,61 @@ export function registerAdSetTools(server: McpServer): void {
    * Get detailed information about a specific ad set
    */
   server.tool(
-    "get_adset_details",
-    "Get detailed information about a specific ad set",
+    "meta_get_adset_details",
+    `Get detailed information about a specific ad set.
+
+Retrieves comprehensive details about a single ad set including targeting configuration, budget, bid strategy, optimization goals, and scheduling. Useful for inspecting ad set settings before updates.
+
+Args:
+  - adset_id (string, required): Ad set ID
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')
+
+Returns:
+  {
+    "success": true,
+    "adset": {
+      "id": "123456789",
+      "name": "Ad Set 1",
+      "campaign_id": "987654321",
+      "status": "ACTIVE",
+      "daily_budget": 2500,
+      "lifetime_budget": null,
+      "optimization_goal": "LINK_CLICKS",
+      "billing_event": "IMPRESSIONS",
+      "targeting": {
+        "age_min": 18,
+        "age_max": 65,
+        "genders": [1, 2],
+        "geo_locations": { "countries": ["US"] }
+      },
+      "bid_amount": 100,
+      "bid_strategy": "LOWEST_COST_WITHOUT_CAP"
+    }
+  }
+
+Examples:
+  - Get ad set details: { "adset_id": "123456789" }
+
+Errors:
+  - 190: Token expired - use meta_get_login_link to re-authenticate
+  - 4/17/32: Rate limited - wait and retry
+  - 100: Invalid ad set ID format
+  - 10/200/294: Permission denied - user lacks access to this ad set`,
     {
       adset_id: z.string().describe("Ad set ID"),
       user_id: userIdSchema,
+      response_format: responseFormatSchema,
     },
-    async ({ adset_id, user_id }) => {
+    READ_ONLY_ANNOTATIONS,
+    async ({ adset_id, user_id, response_format }) => {
+      const format = response_format ?? "json";
       try {
         const client = createMetaClient({ userId: user_id ?? "default" });
         const adset = await client.getAdSetDetails(adset_id);
 
-        return createSuccessResponse({ adset });
+        return createSuccessResponse({ adset }, format);
       } catch (error) {
-        return createErrorResponse(error);
+        return createErrorResponse(error, format);
       }
     },
   );
@@ -86,8 +179,46 @@ export function registerAdSetTools(server: McpServer): void {
    * Create a new ad set
    */
   server.tool(
-    "create_adset",
-    "Create a new ad set within a campaign",
+    "meta_create_adset",
+    `Create a new ad set within a campaign.
+
+Creates a new ad set with targeting, budget, optimization goals, and bid strategy. Ad sets are created in PAUSED status by default. Requires exactly one budget type (daily_budget or lifetime_budget). Targeting must be specified using the targeting parameter.
+
+Args:
+  - account_id (string, required): Ad account ID (with or without 'act_' prefix)
+  - name (string, required): Ad set name (min 1 character)
+  - campaign_id (string, required): Parent campaign ID
+  - optimization_goal (string, required): What the ad set optimizes for. Options: LINK_CLICKS, OUTCOME_CLICKS, IMPRESSIONS, REACH, LANDING_PAGE_VIEWS, POST_ENGAGEMENT, THRUPLAY, etc.
+  - billing_event (string, required): Billing event type. Options: IMPRESSIONS, LINK_CLICKS, OFFER_CLAIMS, PAGE_LIKES, POST_ENGAGEMENT, THRUPLAY
+  - targeting (object, required): Targeting specification object with geo_locations, age_min, age_max, genders, interests, behaviors, etc.
+  - status (string, optional): Initial ad set status - ACTIVE or PAUSED (default: PAUSED)
+  - daily_budget (number, optional): Daily budget in cents (e.g., 1000 = $10.00). Required if lifetime_budget not provided.
+  - lifetime_budget (number, optional): Lifetime budget in cents (e.g., 10000 = $100.00). Required if daily_budget not provided.
+  - bid_amount (number, optional): Bid amount in cents (required for some optimization goals)
+  - bid_strategy (string, optional): Bid strategy. Options: LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, TARGET_COST
+  - start_time (string, optional): Start time in ISO 8601 format (e.g., "2025-01-01T00:00:00+0000")
+  - end_time (string, optional): End time in ISO 8601 format
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')
+
+Returns:
+  {
+    "success": true,
+    "adset_id": "123456789",
+    "message": "Ad set \"My Ad Set\" created successfully"
+  }
+
+Examples:
+  - Basic ad set: { "account_id": "act_123", "name": "US Adults 25-45", "campaign_id": "987", "optimization_goal": "LINK_CLICKS", "billing_event": "IMPRESSIONS", "targeting": { "age_min": 25, "age_max": 45, "geo_locations": { "countries": ["US"] } }, "daily_budget": 2500 }
+  - With lifetime budget: { "account_id": "act_123", "name": "Limited Run", "campaign_id": "987", "optimization_goal": "IMPRESSIONS", "billing_event": "IMPRESSIONS", "targeting": { "geo_locations": { "countries": ["US"] } }, "lifetime_budget": 10000 }
+
+Errors:
+  - 190: Token expired - use meta_get_login_link to re-authenticate
+  - 4/17/32: Rate limited - wait and retry
+  - 10/200/294: Permission denied - user lacks ads_management permission
+  - 100: Invalid account/campaign ID or missing required fields
+  - 1885501: Budget too low - minimum daily budget is $1.00 (100 cents)
+  - 1885502: Budget too high - exceeds account spending limit
+  - 1487654: Invalid targeting specification`,
     {
       account_id: accountIdSchema,
       name: z.string().min(1).describe("Ad set name"),
@@ -116,7 +247,9 @@ export function registerAdSetTools(server: McpServer): void {
         .describe("Start time in ISO 8601 format"),
       end_time: z.string().optional().describe("End time in ISO 8601 format"),
       user_id: userIdSchema,
+      response_format: responseFormatSchema,
     },
+    CREATE_ANNOTATIONS,
     async ({
       account_id,
       name,
@@ -132,7 +265,9 @@ export function registerAdSetTools(server: McpServer): void {
       start_time,
       end_time,
       user_id,
+      response_format,
     }) => {
+      const format = response_format ?? "json";
       try {
         const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
@@ -152,12 +287,15 @@ export function registerAdSetTools(server: McpServer): void {
           end_time,
         });
 
-        return createSuccessResponse({
-          adset_id: result.id,
-          message: `Ad set "${name}" created successfully`,
-        });
+        return createSuccessResponse(
+          {
+            adset_id: result.id,
+            message: `Ad set "${name}" created successfully`,
+          },
+          format,
+        );
       } catch (error) {
-        return createErrorResponse(error);
+        return createErrorResponse(error, format);
       }
     },
   );
@@ -166,8 +304,42 @@ export function registerAdSetTools(server: McpServer): void {
    * Update an existing ad set
    */
   server.tool(
-    "update_adset",
-    "Update an existing ad set's settings",
+    "meta_update_adset",
+    `Update an existing ad set's settings.
+
+Modifies an existing ad set's name, status, budget, targeting, or bid strategy. All parameters are optional - only provided fields will be updated. Budget changes require either daily_budget or lifetime_budget (not both).
+
+Args:
+  - adset_id (string, required): Ad set ID to update
+  - name (string, optional): New ad set name (min 1 character)
+  - status (string, optional): New ad set status - ACTIVE, PAUSED, DELETED, ARCHIVED
+  - daily_budget (number, optional): New daily budget in cents (e.g., 1000 = $10.00). Cannot be set if lifetime_budget is provided.
+  - lifetime_budget (number, optional): New lifetime budget in cents (e.g., 10000 = $100.00). Cannot be set if daily_budget is provided.
+  - targeting (object, optional): New targeting specification object
+  - bid_amount (number, optional): New bid amount in cents
+  - bid_strategy (string, optional): New bid strategy. Options: LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, TARGET_COST
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')
+
+Returns:
+  {
+    "success": true,
+    "message": "Ad set 123456789 updated successfully"
+  }
+
+Examples:
+  - Update name: { "adset_id": "123", "name": "Updated Ad Set Name" }
+  - Pause ad set: { "adset_id": "123", "status": "PAUSED" }
+  - Change budget: { "adset_id": "123", "daily_budget": 5000 }
+  - Update targeting: { "adset_id": "123", "targeting": { "age_min": 30, "age_max": 50, "geo_locations": { "countries": ["US", "CA"] } } }
+
+Errors:
+  - 190: Token expired - use meta_get_login_link to re-authenticate
+  - 4/17/32: Rate limited - wait and retry
+  - 10/200/294: Permission denied - user lacks ads_management permission
+  - 100: Invalid ad set ID or conflicting budget parameters
+  - 1885501: Budget too low - minimum daily budget is $1.00 (100 cents)
+  - 1885502: Budget too high - exceeds account spending limit
+  - 1487654: Invalid targeting specification`,
     {
       adset_id: z.string().describe("Ad set ID to update"),
       name: z.string().min(1).optional().describe("New ad set name"),
@@ -190,7 +362,9 @@ export function registerAdSetTools(server: McpServer): void {
         .optional()
         .describe("New bid strategy"),
       user_id: userIdSchema,
+      response_format: responseFormatSchema,
     },
+    UPDATE_ANNOTATIONS,
     async ({
       adset_id,
       name,
@@ -201,7 +375,9 @@ export function registerAdSetTools(server: McpServer): void {
       bid_amount,
       bid_strategy,
       user_id,
+      response_format,
     }) => {
+      const format = response_format ?? "json";
       try {
         const client = createMetaClient({ userId: user_id ?? "default" });
 
@@ -215,11 +391,14 @@ export function registerAdSetTools(server: McpServer): void {
           bid_strategy,
         });
 
-        return createSuccessResponse({
-          message: `Ad set ${adset_id} updated successfully`,
-        });
+        return createSuccessResponse(
+          {
+            message: `Ad set ${adset_id} updated successfully`,
+          },
+          format,
+        );
       } catch (error) {
-        return createErrorResponse(error);
+        return createErrorResponse(error, format);
       }
     },
   );

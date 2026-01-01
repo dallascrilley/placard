@@ -21,4 +21,6 @@ export {
   // Targeting
   targetingSchema,
   optionalTargetingSchema,
+  // Response format
+  responseFormatSchema,
 } from "./common.js";

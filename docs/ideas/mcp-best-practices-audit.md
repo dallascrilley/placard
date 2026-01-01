@@ -57,12 +57,13 @@
 - Current: `get_campaigns`
 - Should be: `meta_get_campaigns` or `meta_ads_get_campaigns`
 
-**Current Tools (26 total):**
+**Current Tools (27 total):**
 | Current Name | Recommended Name |
 |--------------|------------------|
-| `get_login_link` | `meta_get_login_link` |
-| `check_auth_status` | `meta_check_auth_status` |
-| `logout` | `meta_logout` |
+| `meta_get_login_link` | `meta_get_login_link` |
+| `meta_complete_auth` | `meta_complete_auth` |
+| `meta_check_auth_status` | `meta_check_auth_status` |
+| `meta_logout` | `meta_logout` |
 | `get_ad_accounts` | `meta_get_ad_accounts` |
 | `get_account_info` | `meta_get_account_info` |
 | `get_campaigns` | `meta_get_campaigns` |

@@ -215,6 +215,79 @@ export function createSuccessResponse(
 }
 
 /**
+ * Extracts error information from various error types.
+ * Preserves context from API error objects with message/code/error fields.
+ */
+function extractErrorInfo(error: unknown): {
+  message: string;
+  code?: string | number;
+  details?: Record<string, unknown>;
+} {
+  if (error instanceof Error) {
+    return { message: error.message };
+  }
+
+  if (typeof error === "string") {
+    return { message: error };
+  }
+
+  // Handle plain objects with common error fields
+  if (error && typeof error === "object") {
+    const obj = error as Record<string, unknown>;
+
+    // Extract message from common fields
+    const message =
+      typeof obj["message"] === "string"
+        ? obj["message"]
+        : typeof obj["error"] === "string"
+          ? obj["error"]
+          : typeof obj["error_message"] === "string"
+            ? obj["error_message"]
+            : null;
+
+    // Extract error code
+    const code =
+      typeof obj["code"] === "number" || typeof obj["code"] === "string"
+        ? obj["code"]
+        : typeof obj["error_code"] === "number" ||
+            typeof obj["error_code"] === "string"
+          ? obj["error_code"]
+          : undefined;
+
+    if (message) {
+      // Collect additional context fields
+      const details: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(obj)) {
+        if (!["message", "error", "error_message", "code", "error_code"].includes(key) && value !== undefined) {
+          details[key] = value;
+        }
+      }
+      const result: {
+        message: string;
+        code?: string | number;
+        details?: Record<string, unknown>;
+      } = { message };
+      if (code !== undefined) {
+        result.code = code;
+      }
+      if (Object.keys(details).length > 0) {
+        result.details = details;
+      }
+      return result;
+    }
+
+    // Fallback: stringify the entire object
+    try {
+      return { message: JSON.stringify(obj) };
+    } catch {
+      return { message: "[Object]" };
+    }
+  }
+
+  return { message: String(error) };
+}
+
+/**
  * Creates a standardized error response for MCP tools.
  *
  * @param error - The error (Error instance, string, or unknown)
@@ -230,25 +303,43 @@ export function createErrorResponse(
   error: unknown,
   format: ResponseFormat = "json",
 ): ToolResponse {
-  const message = error instanceof Error ? error.message : String(error);
+  const errorInfo = extractErrorInfo(error);
 
   if (format === "markdown") {
+    let text = `✗ **Error**\n\n${errorInfo.message}`;
+    if (errorInfo.code !== undefined) {
+      text += `\n\n**Code:** ${errorInfo.code}`;
+    }
+    if (errorInfo.details) {
+      text += `\n\n**Details:**\n${JSON.stringify(errorInfo.details, null, 2)}`;
+    }
     return {
       content: [
         {
           type: "text" as const,
-          text: `✗ **Error**\n\n${message}`,
+          text,
         },
       ],
       isError: true,
     };
   }
 
+  const responseData: Record<string, unknown> = {
+    success: false,
+    error: errorInfo.message,
+  };
+  if (errorInfo.code !== undefined) {
+    responseData["error_code"] = errorInfo.code;
+  }
+  if (errorInfo.details) {
+    responseData["error_details"] = errorInfo.details;
+  }
+
   return {
     content: [
       {
         type: "text" as const,
-        text: JSON.stringify({ success: false, error: message }, null, 2),
+        text: JSON.stringify(responseData, null, 2),
       },
     ],
     isError: true,

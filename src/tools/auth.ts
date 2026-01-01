@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getDefaultMetaAuth } from "../api/auth.js";
 import {
+  CREATE_ANNOTATIONS,
   LOGOUT_ANNOTATIONS,
   READ_ONLY_ANNOTATIONS,
 } from "../constants/index.js";
@@ -306,6 +307,113 @@ Errors:
           },
         ],
       };
+    },
+  );
+
+  // Complete authentication with authorization code
+  server.tool(
+    "meta_complete_auth",
+    `Complete Meta Ads authentication using an authorization code.
+
+Use this tool when you have an authorization code from the OAuth callback URL. This is useful when the state parameter expired (e.g., after server restart) but you still have a valid authorization code.
+
+Args:
+  - code (string, required): The authorization code from the callback URL (the 'code' query parameter).
+  - user_id (string, optional): User identifier for token storage. Defaults to 'default'.
+
+Returns:
+  If successful:
+  {
+    "status": "authenticated",
+    "message": "Successfully authenticated with Meta Ads.",
+    "user_id": "default",
+    "expires_at": 1234567890,
+    "expires_at_iso": "2025-03-01T00:00:00.000Z",
+    "expires_in_days": 60,
+    "scopes": ["ads_read", "ads_management", ...]
+  }
+
+  If failed:
+  {
+    "status": "error",
+    "message": "Token exchange failed: ...",
+    "user_id": "default"
+  }
+
+Examples:
+  - { "code": "AQCPd9WAO72OrMnxjwABOBgn33iWmw4QXxhU5VEva3Gshy..." }
+  - { "code": "AQCPd9...", "user_id": "user_123" }
+
+Errors:
+  - Token exchange failed: Invalid or expired authorization code
+  - Token exchange failed: Code has already been used`,
+    {
+      code: z
+        .string()
+        .describe("The authorization code from the OAuth callback URL."),
+      user_id: z
+        .string()
+        .optional()
+        .describe("User identifier for token storage. Defaults to 'default'."),
+    },
+    CREATE_ANNOTATIONS,
+    async ({ code, user_id }) => {
+      const userId = user_id ?? "default";
+
+      try {
+        const token = await auth.exchangeCodeDirect(code, userId);
+
+        const expiresInfo = token.expiresAt
+          ? {
+              expires_at: token.expiresAt,
+              expires_at_iso: new Date(token.expiresAt * 1000).toISOString(),
+              expires_in_days: Math.floor(
+                (token.expiresAt * 1000 - Date.now()) / (1000 * 60 * 60 * 24),
+              ),
+            }
+          : {
+              expires_at: null,
+              expires_info: "Never expires",
+            };
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  status: "authenticated",
+                  message: "Successfully authenticated with Meta Ads.",
+                  user_id: userId,
+                  ...expiresInfo,
+                  scopes: token.scopes,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  status: "error",
+                  message: errorMessage,
+                  user_id: userId,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
     },
   );
 }

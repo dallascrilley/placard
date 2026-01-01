@@ -258,7 +258,12 @@ function extractErrorInfo(error: unknown): {
       // Collect additional context fields
       const details: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(obj)) {
-        if (!["message", "error", "error_message", "code", "error_code"].includes(key) && value !== undefined) {
+        if (
+          !["message", "error", "error_message", "code", "error_code"].includes(
+            key,
+          ) &&
+          value !== undefined
+        ) {
           details[key] = value;
         }
       }

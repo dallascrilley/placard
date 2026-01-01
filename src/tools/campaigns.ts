@@ -24,7 +24,6 @@ import {
   userIdSchema,
 } from "../schemas/index.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
-import type { ResponseFormat } from "../utils/tool-responses.js";
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -91,7 +90,7 @@ Errors:
     },
     READ_ONLY_ANNOTATIONS,
     async ({ account_id, limit, status, user_id, response_format }) => {
-      const format = (response_format ?? "json") as ResponseFormat;
+      const format = response_format ?? "json";
       try {
         const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
@@ -158,7 +157,7 @@ Errors:
     },
     READ_ONLY_ANNOTATIONS,
     async ({ campaign_id, user_id, response_format }) => {
-      const format = (response_format ?? "json") as ResponseFormat;
+      const format = response_format ?? "json";
       try {
         const client = createMetaClient({ userId: user_id ?? "default" });
         const campaign = await client.getCampaignDetails(campaign_id);
@@ -241,7 +240,7 @@ Errors:
       user_id,
       response_format,
     }) => {
-      const format = (response_format ?? "json") as ResponseFormat;
+      const format = response_format ?? "json";
       try {
         const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
@@ -337,7 +336,7 @@ Errors:
       user_id,
       response_format,
     }) => {
-      const format = (response_format ?? "json") as ResponseFormat;
+      const format = response_format ?? "json";
       try {
         const client = createMetaClient({ userId: user_id ?? "default" });
 

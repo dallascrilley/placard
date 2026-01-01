@@ -70,11 +70,36 @@ describe("createErrorResponse", () => {
     expect(parsed.error).toBe("String error message");
   });
 
-  it("should handle unknown error types", () => {
+  it("should handle unknown error types by JSON-stringifying", () => {
     const response = createErrorResponse({ custom: "error" });
 
     const parsed = JSON.parse(response.content[0]?.text ?? "{}");
-    expect(parsed.error).toBe("[object Object]");
+    // Objects without message/error fields are JSON-stringified
+    expect(parsed.error).toBe('{"custom":"error"}');
+  });
+
+  it("should extract message and code from error objects", () => {
+    const response = createErrorResponse({
+      message: "API error",
+      code: 190,
+      fbtrace_id: "abc123",
+    });
+
+    const parsed = JSON.parse(response.content[0]?.text ?? "{}");
+    expect(parsed.error).toBe("API error");
+    expect(parsed.error_code).toBe(190);
+    expect(parsed.error_details).toEqual({ fbtrace_id: "abc123" });
+  });
+
+  it("should handle error objects with 'error' field instead of 'message'", () => {
+    const response = createErrorResponse({
+      error: "Something went wrong",
+      error_code: "AUTH_FAILED",
+    });
+
+    const parsed = JSON.parse(response.content[0]?.text ?? "{}");
+    expect(parsed.error).toBe("Something went wrong");
+    expect(parsed.error_code).toBe("AUTH_FAILED");
   });
 
   it("should handle null/undefined errors", () => {

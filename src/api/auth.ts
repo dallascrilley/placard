@@ -309,6 +309,46 @@ export class MetaAuth {
       appSecretConfigured: !!this.config.appSecret,
     };
   }
+
+  /**
+   * Exchange authorization code directly (bypasses state verification)
+   * Use when the state was lost due to server restart or session change.
+   */
+  async exchangeCodeDirect(code: string, userId: string): Promise<StoredToken> {
+    // Exchange code for short-lived token
+    const shortLivedToken = await this.getAccessToken(code);
+
+    // Exchange for long-lived token if we have app secret
+    let finalToken: TokenExchangeResponse;
+    if (this.config.appSecret) {
+      finalToken = await this.exchangeForLongLivedToken(
+        shortLivedToken.access_token,
+      );
+    } else {
+      finalToken = shortLivedToken;
+    }
+
+    // Calculate expiration
+    const now = Math.floor(Date.now() / 1000);
+    const expiresAt = finalToken.expires_in
+      ? now + finalToken.expires_in
+      : null;
+
+    // Store token
+    const storedToken: StoredToken = {
+      userId,
+      accessToken: finalToken.access_token,
+      tokenType: finalToken.token_type,
+      expiresAt,
+      scopes: this.config.scopes,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    this.tokenStore.saveToken(storedToken);
+
+    return storedToken;
+  }
 }
 
 // Default singleton instance

@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { HEALTH_CHECK_ANNOTATIONS } from "./constants/index.js";
 import { registerAccountTools } from "./tools/accounts.js";
 import { registerAdTools } from "./tools/ads.js";
 import { registerAdSetTools } from "./tools/adsets.js";
@@ -19,10 +20,31 @@ export function createServer(): McpServer {
 
   // Register a health check tool for initial testing
   server.tool(
-    "health_check",
+    "meta_health_check",
+    `Check if the Meta Ads MCP server is running and healthy.
+
+Performs a basic health check to verify the server is operational and responding to requests. Returns server status, name, version, and current timestamp. Use this to verify connectivity before performing other operations.
+
+Args:
+  (No parameters required)
+
+Returns:
+  {
+    "status": "healthy",
+    "server": "meta-ads-mcp",
+    "version": "0.1.0",
+    "timestamp": "2025-01-01T00:00:00.000Z"
+  }
+
+Examples:
+  - Basic health check: {}
+
+Errors:
+  - If the server is unhealthy or unreachable, the MCP connection will fail before reaching this tool.`,
     {
       // No parameters needed
     },
+    HEALTH_CHECK_ANNOTATIONS,
     async () => {
       return {
         content: [

@@ -10,19 +10,24 @@ import { createMetaClient } from "../api/meta-client.js";
 import {
   CAMPAIGN_OBJECTIVES,
   CAMPAIGN_STATUSES,
+  CREATE_ANNOTATIONS,
+  READ_ONLY_ANNOTATIONS,
   SPECIAL_AD_CATEGORIES,
+  UPDATE_ANNOTATIONS,
 } from "../constants/index.js";
 import {
   accountIdSchema,
   createLimitSchema,
   dailyBudgetSchema,
   lifetimeBudgetSchema,
+  responseFormatSchema,
   userIdSchema,
 } from "../schemas/index.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
 import {
   createErrorResponse,
   createSuccessResponse,
+  enhancePagination,
 } from "../utils/tool-responses.js";
 
 export function registerCampaignTools(server: McpServer): void {
@@ -30,8 +35,49 @@ export function registerCampaignTools(server: McpServer): void {
    * List campaigns for an ad account
    */
   server.tool(
-    "get_campaigns",
-    "List campaigns for an ad account with optional filtering",
+    "meta_get_campaigns",
+    `List campaigns for an ad account with optional filtering.
+
+Retrieves advertising campaigns from a Meta ad account, supporting status filtering and pagination. Returns campaign details including name, objective, status, budget, and performance metrics.
+
+Args:
+  - account_id (string, required): Ad account ID (with or without 'act_' prefix)
+  - limit (number, optional): Maximum campaigns to return, 1-100 (default: 25)
+  - status (string, optional): Filter by status: ACTIVE, PAUSED, DELETED, ARCHIVED
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')
+
+Returns:
+  {
+    "success": true,
+    "campaigns": [
+      {
+        "id": "123456789",
+        "name": "Summer Sale Campaign",
+        "objective": "OUTCOME_TRAFFIC",
+        "status": "ACTIVE",
+        "daily_budget": 5000,
+        "lifetime_budget": null
+      }
+    ],
+    "paging": {
+      "cursors": {
+        "before": "...",
+        "after": "..."
+      },
+      "next": "https://graph.facebook.com/v22.0/act_123/campaigns?..."
+    }
+  }
+
+Examples:
+  - Active campaigns: { "account_id": "act_123", "status": "ACTIVE" }
+  - With limit: { "account_id": "act_123", "limit": 50 }
+  - All campaigns: { "account_id": "act_123" }
+  - Markdown format: { "account_id": "act_123", "response_format": "markdown" }
+
+Errors:
+  - 190: Token expired - use meta_get_login_link to re-authenticate
+  - 4/17/32: Rate limited - wait and retry
+  - 10/200/294: Permission denied - user lacks access to account`,
     {
       account_id: accountIdSchema,
       limit: createLimitSchema("campaigns"),
@@ -40,8 +86,11 @@ export function registerCampaignTools(server: McpServer): void {
         .optional()
         .describe("Filter by campaign status"),
       user_id: userIdSchema,
+      response_format: responseFormatSchema,
     },
-    async ({ account_id, limit, status, user_id }) => {
+    READ_ONLY_ANNOTATIONS,
+    async ({ account_id, limit, status, user_id, response_format }) => {
+      const format = response_format ?? "json";
       try {
         const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
@@ -50,12 +99,15 @@ export function registerCampaignTools(server: McpServer): void {
           status,
         });
 
-        return createSuccessResponse({
-          campaigns: response.data,
-          paging: response.paging,
-        });
+        return createSuccessResponse(
+          {
+            campaigns: response.data,
+            paging: enhancePagination(response.paging, response.data),
+          },
+          format,
+        );
       } catch (error) {
-        return createErrorResponse(error);
+        return createErrorResponse(error, format);
       }
     },
   );
@@ -64,20 +116,55 @@ export function registerCampaignTools(server: McpServer): void {
    * Get detailed information about a specific campaign
    */
   server.tool(
-    "get_campaign_details",
-    "Get detailed information about a specific campaign",
+    "meta_get_campaign_details",
+    `Get detailed information about a specific campaign.
+
+Retrieves comprehensive details about a single campaign including all settings, budget configuration, special ad categories, and current status. Useful for inspecting campaign configuration before updates.
+
+Args:
+  - campaign_id (string, required): Campaign ID
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')
+
+Returns:
+  {
+    "success": true,
+    "campaign": {
+      "id": "123456789",
+      "name": "Summer Sale Campaign",
+      "objective": "OUTCOME_TRAFFIC",
+      "status": "ACTIVE",
+      "daily_budget": 5000,
+      "lifetime_budget": null,
+      "special_ad_categories": [],
+      "created_time": "2025-01-01T00:00:00+0000",
+      "updated_time": "2025-01-15T12:00:00+0000"
+    }
+  }
+
+Examples:
+  - Get campaign details: { "campaign_id": "123456789" }
+  - Markdown format: { "campaign_id": "123456789", "response_format": "markdown" }
+
+Errors:
+  - 190: Token expired - use meta_get_login_link to re-authenticate
+  - 4/17/32: Rate limited - wait and retry
+  - 100: Invalid campaign ID format
+  - 10/200/294: Permission denied - user lacks access to this campaign`,
     {
       campaign_id: z.string().describe("Campaign ID"),
       user_id: userIdSchema,
+      response_format: responseFormatSchema,
     },
-    async ({ campaign_id, user_id }) => {
+    READ_ONLY_ANNOTATIONS,
+    async ({ campaign_id, user_id, response_format }) => {
+      const format = response_format ?? "json";
       try {
         const client = createMetaClient({ userId: user_id ?? "default" });
         const campaign = await client.getCampaignDetails(campaign_id);
 
-        return createSuccessResponse({ campaign });
+        return createSuccessResponse({ campaign }, format);
       } catch (error) {
-        return createErrorResponse(error);
+        return createErrorResponse(error, format);
       }
     },
   );
@@ -86,8 +173,40 @@ export function registerCampaignTools(server: McpServer): void {
    * Create a new campaign
    */
   server.tool(
-    "create_campaign",
-    "Create a new advertising campaign",
+    "meta_create_campaign",
+    `Create a new advertising campaign.
+
+Creates a new Meta advertising campaign with the specified objective, budget, and settings. Campaigns are created in PAUSED status by default to allow review before activation. Supports both daily and lifetime budgets (exactly one required).
+
+Args:
+  - account_id (string, required): Ad account ID (with or without 'act_' prefix)
+  - name (string, required): Campaign name (min 1 character)
+  - objective (string, required): Campaign objective (OUTCOME_* format for API v22.0+). Options: OUTCOME_TRAFFIC, OUTCOME_ENGAGEMENT, OUTCOME_LEADS, OUTCOME_APP_PROMOTION, OUTCOME_SALES, OUTCOME_AWARENESS
+  - status (string, optional): Initial campaign status - ACTIVE or PAUSED (default: PAUSED)
+  - special_ad_categories (array, optional): Special ad categories if applicable. Required for housing, employment, credit, political ads. Options: HOUSING, EMPLOYMENT, CREDIT, POLITICAL_AND_ISSUE_ADS
+  - daily_budget (number, optional): Daily budget in cents (e.g., 1000 = $10.00). Required if lifetime_budget not provided.
+  - lifetime_budget (number, optional): Lifetime budget in cents (e.g., 10000 = $100.00). Required if daily_budget not provided.
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')
+
+Returns:
+  {
+    "success": true,
+    "campaign_id": "123456789",
+    "message": "Campaign \"Summer Sale\" created successfully"
+  }
+
+Examples:
+  - Daily budget campaign: { "account_id": "act_123", "name": "Summer Sale", "objective": "OUTCOME_TRAFFIC", "daily_budget": 5000 }
+  - Lifetime budget: { "account_id": "act_123", "name": "Holiday Promo", "objective": "OUTCOME_SALES", "lifetime_budget": 50000 }
+  - With special category: { "account_id": "act_123", "name": "Job Posting", "objective": "OUTCOME_LEADS", "daily_budget": 3000, "special_ad_categories": ["EMPLOYMENT"] }
+
+Errors:
+  - 190: Token expired - use meta_get_login_link to re-authenticate
+  - 4/17/32: Rate limited - wait and retry
+  - 10/200/294: Permission denied - user lacks ads_management permission
+  - 100: Invalid account ID or missing required fields
+  - 1885501: Budget too low - minimum daily budget is $1.00 (100 cents)
+  - 1885502: Budget too high - exceeds account spending limit`,
     {
       account_id: accountIdSchema,
       name: z.string().min(1).describe("Campaign name"),
@@ -107,7 +226,9 @@ export function registerCampaignTools(server: McpServer): void {
       daily_budget: dailyBudgetSchema,
       lifetime_budget: lifetimeBudgetSchema,
       user_id: userIdSchema,
+      response_format: responseFormatSchema,
     },
+    CREATE_ANNOTATIONS,
     async ({
       account_id,
       name,
@@ -117,7 +238,9 @@ export function registerCampaignTools(server: McpServer): void {
       daily_budget,
       lifetime_budget,
       user_id,
+      response_format,
     }) => {
+      const format = response_format ?? "json";
       try {
         const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
@@ -139,12 +262,15 @@ export function registerCampaignTools(server: McpServer): void {
           lifetime_budget,
         });
 
-        return createSuccessResponse({
-          campaign_id: result.id,
-          message: `Campaign "${name}" created successfully`,
-        });
+        return createSuccessResponse(
+          {
+            campaign_id: result.id,
+            message: `Campaign "${name}" created successfully`,
+          },
+          format,
+        );
       } catch (error) {
-        return createErrorResponse(error);
+        return createErrorResponse(error, format);
       }
     },
   );
@@ -153,8 +279,37 @@ export function registerCampaignTools(server: McpServer): void {
    * Update an existing campaign
    */
   server.tool(
-    "update_campaign",
-    "Update an existing campaign's settings",
+    "meta_update_campaign",
+    `Update an existing campaign's settings.
+
+Modifies an existing campaign's name, status, or budget configuration. All parameters are optional - only provided fields will be updated. Budget changes require either daily_budget or lifetime_budget (not both).
+
+Args:
+  - campaign_id (string, required): Campaign ID to update
+  - name (string, optional): New campaign name (min 1 character)
+  - status (string, optional): New campaign status - ACTIVE, PAUSED, DELETED, ARCHIVED
+  - daily_budget (number, optional): New daily budget in cents (e.g., 1000 = $10.00). Cannot be set if lifetime_budget is provided.
+  - lifetime_budget (number, optional): New lifetime budget in cents (e.g., 10000 = $100.00). Cannot be set if daily_budget is provided.
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')
+
+Returns:
+  {
+    "success": true,
+    "message": "Campaign 123456789 updated successfully"
+  }
+
+Examples:
+  - Update name: { "campaign_id": "123", "name": "Updated Campaign Name" }
+  - Pause campaign: { "campaign_id": "123", "status": "PAUSED" }
+  - Change budget: { "campaign_id": "123", "daily_budget": 7500 }
+
+Errors:
+  - 190: Token expired - use meta_get_login_link to re-authenticate
+  - 4/17/32: Rate limited - wait and retry
+  - 10/200/294: Permission denied - user lacks ads_management permission
+  - 100: Invalid campaign ID or conflicting budget parameters
+  - 1885501: Budget too low - minimum daily budget is $1.00 (100 cents)
+  - 1885502: Budget too high - exceeds account spending limit`,
     {
       campaign_id: z.string().describe("Campaign ID to update"),
       name: z.string().min(1).optional().describe("New campaign name"),
@@ -169,7 +324,9 @@ export function registerCampaignTools(server: McpServer): void {
         "New lifetime budget in cents (e.g., 10000 = $100.00)",
       ),
       user_id: userIdSchema,
+      response_format: responseFormatSchema,
     },
+    UPDATE_ANNOTATIONS,
     async ({
       campaign_id,
       name,
@@ -177,7 +334,9 @@ export function registerCampaignTools(server: McpServer): void {
       daily_budget,
       lifetime_budget,
       user_id,
+      response_format,
     }) => {
+      const format = response_format ?? "json";
       try {
         const client = createMetaClient({ userId: user_id ?? "default" });
 
@@ -188,11 +347,14 @@ export function registerCampaignTools(server: McpServer): void {
           lifetime_budget,
         });
 
-        return createSuccessResponse({
-          message: `Campaign ${campaign_id} updated successfully`,
-        });
+        return createSuccessResponse(
+          {
+            message: `Campaign ${campaign_id} updated successfully`,
+          },
+          format,
+        );
       } catch (error) {
-        return createErrorResponse(error);
+        return createErrorResponse(error, format);
       }
     },
   );

@@ -159,6 +159,20 @@ describe("MetaApiError", () => {
       const error = new MetaApiError(createMetaErrorBody(999, "Unknown error"));
       expect(error.isRetryable).toBe(false);
     });
+
+    it("should mark transient errors as retryable regardless of code", () => {
+      const errorBody = {
+        error: {
+          message: "Transient error",
+          type: "OAuthException",
+          code: 999, // Unknown code
+          fbtrace_id: "trace-123",
+          is_transient: true,
+        },
+      };
+      const error = new MetaApiError(errorBody);
+      expect(error.isRetryable).toBe(true);
+    });
   });
 
   describe("toJSON", () => {
@@ -189,6 +203,38 @@ describe("MetaApiError", () => {
         blameField: undefined,
         isTransient: false,
         isRetryable: false,
+      });
+    });
+
+    it("should serialize with blameField and isTransient present", () => {
+      const errorBody = {
+        error: {
+          message: "Invalid parameter",
+          type: "OAuthException",
+          code: 100,
+          error_subcode: 1487756,
+          fbtrace_id: "trace-xyz",
+          error_user_title: "Locations can't be used",
+          error_user_msg: "Some of your locations overlap.",
+          error_data: '{"blame_field":"targeting"}',
+          is_transient: true,
+        },
+      };
+      const error = new MetaApiError(errorBody);
+      const json = error.toJSON();
+
+      expect(json).toEqual({
+        name: "MetaApiError",
+        message: "Invalid parameter",
+        code: 100,
+        type: "OAuthException",
+        subcode: 1487756,
+        fbtrace_id: "trace-xyz",
+        userTitle: "Locations can't be used",
+        userMessage: "Some of your locations overlap.",
+        blameField: "targeting",
+        isTransient: true,
+        isRetryable: true, // true because isTransient is true
       });
     });
   });

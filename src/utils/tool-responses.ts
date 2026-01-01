@@ -2,6 +2,8 @@
  * Utility functions for creating standardized MCP tool responses.
  */
 
+import { MetaApiError } from "../api/error-handling.js";
+
 /**
  * MCP tool response structure.
  */
@@ -295,6 +297,9 @@ function extractErrorInfo(error: unknown): {
 /**
  * Creates a standardized error response for MCP tools.
  *
+ * For MetaApiError, returns full error details including user-friendly messages,
+ * error codes, and the blame_field that identifies which parameter caused the error.
+ *
  * @param error - The error (Error instance, string, or unknown)
  * @param format - Response format: 'json' (default) or 'markdown'
  * @returns A formatted MCP tool response with success: false and isError: true
@@ -308,6 +313,61 @@ export function createErrorResponse(
   error: unknown,
   format: ResponseFormat = "json",
 ): ToolResponse {
+  // Handle Meta API errors with full details
+  if (error instanceof MetaApiError) {
+    const errorDetails: Record<string, unknown> = {
+      message: error.userMessage || error.message,
+      code: error.code,
+      type: error.type,
+    };
+
+    // Include optional fields only if present
+    if (error.userTitle) {
+      errorDetails["title"] = error.userTitle;
+    }
+    if (error.subcode) {
+      errorDetails["subcode"] = error.subcode;
+    }
+    if (error.blameField) {
+      errorDetails["blame_field"] = error.blameField;
+    }
+    if (error.fbtrace_id) {
+      errorDetails["fbtrace_id"] = error.fbtrace_id;
+    }
+    errorDetails["is_transient"] = error.isTransient;
+    errorDetails["is_retryable"] = error.isRetryable;
+
+    if (format === "markdown") {
+      let text = `✗ **Error**\n\n${errorDetails["message"]}`;
+      if (errorDetails["title"]) {
+        text = `✗ **${errorDetails["title"]}**\n\n${errorDetails["message"]}`;
+      }
+      text += `\n\n**Code:** ${error.code}`;
+      if (error.blameField) {
+        text += `\n**Field:** ${error.blameField}`;
+      }
+      return {
+        content: [{ type: "text" as const, text }],
+        isError: true,
+      };
+    }
+
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify(
+            { success: false, error: errorDetails },
+            null,
+            2,
+          ),
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  // Fallback for non-Meta errors using extractErrorInfo
   const errorInfo = extractErrorInfo(error);
 
   if (format === "markdown") {
@@ -319,12 +379,7 @@ export function createErrorResponse(
       text += `\n\n**Details:**\n${JSON.stringify(errorInfo.details, null, 2)}`;
     }
     return {
-      content: [
-        {
-          type: "text" as const,
-          text,
-        },
-      ],
+      content: [{ type: "text" as const, text }],
       isError: true,
     };
   }

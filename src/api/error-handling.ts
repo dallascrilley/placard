@@ -13,6 +13,8 @@ export interface MetaApiErrorResponse {
     fbtrace_id: string;
     error_user_title?: string;
     error_user_msg?: string;
+    error_data?: string; // JSON string containing blame_field
+    is_transient?: boolean;
   };
 }
 
@@ -23,6 +25,8 @@ export class MetaApiError extends Error {
   readonly fbtrace_id: string;
   readonly userTitle: string | undefined;
   readonly userMessage: string | undefined;
+  readonly blameField: string | undefined;
+  readonly isTransient: boolean;
   readonly isRetryable: boolean;
 
   constructor(response: MetaApiErrorResponse) {
@@ -34,10 +38,25 @@ export class MetaApiError extends Error {
     this.fbtrace_id = response.error.fbtrace_id;
     this.userTitle = response.error.error_user_title;
     this.userMessage = response.error.error_user_msg;
+    this.blameField = this.parseBlameField(response.error.error_data);
+    this.isTransient = response.error.is_transient ?? false;
     this.isRetryable = this.determineRetryable();
   }
 
+  private parseBlameField(errorData?: string): string | undefined {
+    if (!errorData) return undefined;
+    try {
+      const parsed = JSON.parse(errorData) as { blame_field?: string };
+      return parsed.blame_field;
+    } catch {
+      return undefined;
+    }
+  }
+
   private determineRetryable(): boolean {
+    // Transient errors are retryable regardless of error code
+    if (this.isTransient) return true;
+
     // Rate limit errors are retryable
     if (this.code === 4 || this.code === 17 || this.code === 32) return true;
     if (this.code === 613 || this.code === 80004) return true; // API rate limit
@@ -65,6 +84,8 @@ export class MetaApiError extends Error {
       fbtrace_id: this.fbtrace_id,
       userTitle: this.userTitle,
       userMessage: this.userMessage,
+      blameField: this.blameField,
+      isTransient: this.isTransient,
       isRetryable: this.isRetryable,
     };
   }

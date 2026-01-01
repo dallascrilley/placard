@@ -223,8 +223,12 @@ Errors:
         .describe(
           "Special ad categories if applicable (required for housing, employment, credit, political ads)",
         ),
-      daily_budget: dailyBudgetSchema,
-      lifetime_budget: lifetimeBudgetSchema,
+      daily_budget: dailyBudgetSchema.describe(
+        "Daily budget in cents (required if no lifetime_budget)",
+      ),
+      lifetime_budget: lifetimeBudgetSchema.describe(
+        "Lifetime budget in cents (required if no daily_budget)",
+      ),
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
@@ -242,6 +246,15 @@ Errors:
     }) => {
       const format = response_format ?? "json";
       try {
+        // Validate budget requirement
+        if (daily_budget === undefined && lifetime_budget === undefined) {
+          return createErrorResponse(
+            new Error(
+              "Either daily_budget or lifetime_budget is required. Provide at least one budget type.",
+            ),
+          );
+        }
+
         const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
 

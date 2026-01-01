@@ -48,6 +48,79 @@ describe("MetaApiError", () => {
     expect(error.userMessage).toBe("Please wait before trying again");
   });
 
+  it("should parse blame_field from error_data", () => {
+    const errorBody = {
+      error: {
+        message: "Invalid parameter",
+        type: "OAuthException",
+        code: 100,
+        fbtrace_id: "trace-123",
+        error_data: '{"blame_field":"targeting"}',
+      },
+    };
+    const error = new MetaApiError(errorBody);
+
+    expect(error.blameField).toBe("targeting");
+  });
+
+  it("should handle missing error_data gracefully", () => {
+    const errorBody = {
+      error: {
+        message: "Invalid parameter",
+        type: "OAuthException",
+        code: 100,
+        fbtrace_id: "trace-123",
+      },
+    };
+    const error = new MetaApiError(errorBody);
+
+    expect(error.blameField).toBeUndefined();
+  });
+
+  it("should handle invalid JSON in error_data gracefully", () => {
+    const errorBody = {
+      error: {
+        message: "Invalid parameter",
+        type: "OAuthException",
+        code: 100,
+        fbtrace_id: "trace-123",
+        error_data: "not valid json",
+      },
+    };
+    const error = new MetaApiError(errorBody);
+
+    expect(error.blameField).toBeUndefined();
+  });
+
+  it("should parse is_transient field", () => {
+    const errorBody = {
+      error: {
+        message: "Temporary error",
+        type: "OAuthException",
+        code: 1,
+        fbtrace_id: "trace-123",
+        is_transient: true,
+      },
+    };
+    const error = new MetaApiError(errorBody);
+
+    expect(error.isTransient).toBe(true);
+  });
+
+  it("should default is_transient to false when missing", () => {
+    const errorBody = {
+      error: {
+        message: "Error",
+        type: "OAuthException",
+        code: 100,
+        fbtrace_id: "trace-123",
+      },
+    };
+    const error = new MetaApiError(errorBody);
+
+    expect(error.isTransient).toBe(false);
+  });
+
   describe("isRetryable", () => {
     it("should mark rate limit codes as retryable", () => {
       const rateLimitCodes = [4, 17, 32, 613, 80004];
@@ -86,6 +159,20 @@ describe("MetaApiError", () => {
       const error = new MetaApiError(createMetaErrorBody(999, "Unknown error"));
       expect(error.isRetryable).toBe(false);
     });
+
+    it("should mark transient errors as retryable regardless of code", () => {
+      const errorBody = {
+        error: {
+          message: "Transient error",
+          type: "OAuthException",
+          code: 999, // Unknown code
+          fbtrace_id: "trace-123",
+          is_transient: true,
+        },
+      };
+      const error = new MetaApiError(errorBody);
+      expect(error.isRetryable).toBe(true);
+    });
   });
 
   describe("toJSON", () => {
@@ -113,7 +200,41 @@ describe("MetaApiError", () => {
         fbtrace_id: "trace-abc",
         userTitle: "User Title",
         userMessage: "User Message",
+        blameField: undefined,
+        isTransient: false,
         isRetryable: false,
+      });
+    });
+
+    it("should serialize with blameField and isTransient present", () => {
+      const errorBody = {
+        error: {
+          message: "Invalid parameter",
+          type: "OAuthException",
+          code: 100,
+          error_subcode: 1487756,
+          fbtrace_id: "trace-xyz",
+          error_user_title: "Locations can't be used",
+          error_user_msg: "Some of your locations overlap.",
+          error_data: '{"blame_field":"targeting"}',
+          is_transient: true,
+        },
+      };
+      const error = new MetaApiError(errorBody);
+      const json = error.toJSON();
+
+      expect(json).toEqual({
+        name: "MetaApiError",
+        message: "Invalid parameter",
+        code: 100,
+        type: "OAuthException",
+        subcode: 1487756,
+        fbtrace_id: "trace-xyz",
+        userTitle: "Locations can't be used",
+        userMessage: "Some of your locations overlap.",
+        blameField: "targeting",
+        isTransient: true,
+        isRetryable: true, // true because isTransient is true
       });
     });
   });

@@ -28,6 +28,45 @@ interface ToolDescription {
   length: number;
 }
 
+/**
+ * Counts consecutive backslashes before a position.
+ */
+function countPrecedingBackslashes(content: string, pos: number): number {
+  let count = 0;
+  let i = pos - 1;
+  while (i >= 0 && content[i] === "\\") {
+    count++;
+    i--;
+  }
+  return count;
+}
+
+/**
+ * Checks if a character at position is escaped (odd number of preceding backslashes).
+ */
+function isEscaped(content: string, pos: number): boolean {
+  return countPrecedingBackslashes(content, pos) % 2 === 1;
+}
+
+/**
+ * Unescapes a JavaScript string literal, handling standard escape sequences.
+ */
+function unescapeString(str: string): string {
+  try {
+    // Use JSON.parse for robust unescaping (handles \n, \t, \", \\, etc.)
+    return JSON.parse(`"${str}"`);
+  } catch {
+    // Fallback: basic unescape for common sequences
+    return str
+      .replace(/\\n/g, "\n")
+      .replace(/\\t/g, "\t")
+      .replace(/\\r/g, "\r")
+      .replace(/\\\\/g, "\\")
+      .replace(/\\"/g, '"')
+      .replace(/\\'/g, "'");
+  }
+}
+
 function extractToolDescriptions(filePath: string): ToolDescription[] {
   const content = readFileSync(filePath, "utf-8");
   const results: ToolDescription[] = [];
@@ -45,31 +84,28 @@ function extractToolDescriptions(filePath: string): ToolDescription[] {
     let description = "";
 
     if (quoteType === "`") {
-      // Template literal - find the closing backtick
+      // Template literal - find the unescaped closing backtick
       let pos = descStartPos;
       while (pos < content.length) {
-        if (content[pos] === "`" && (pos === 0 || content[pos - 1] !== "\\")) {
+        if (content[pos] === "`" && !isEscaped(content, pos)) {
           description = content.slice(descStartPos, pos);
           break;
         }
         pos++;
       }
     } else {
-      // Regular string - find the closing quote
+      // Regular string - find the unescaped closing quote
       const stringChar = quoteType;
       let pos = descStartPos;
       while (pos < content.length) {
-        if (
-          content[pos] === stringChar &&
-          (pos === 0 || content[pos - 1] !== "\\")
-        ) {
+        if (content[pos] === stringChar && !isEscaped(content, pos)) {
           description = content.slice(descStartPos, pos);
           break;
         }
         pos++;
       }
-      // Unescape the string
-      description = description.replace(/\\(.)/g, "$1");
+      // Properly unescape the string
+      description = unescapeString(description);
     }
 
     if (description) {

@@ -231,8 +231,14 @@ Errors:
       try {
         const normalizedId = normalizeAccountId(account_id);
 
-        // Build creative object
+        // Build creative object - enforce mutual exclusivity
         let creativeSpec: { creative_id: string } | object;
+        if (creative_id && creative) {
+          return createErrorResponse(
+            "Provide either creative_id or creative specification, not both",
+            format,
+          );
+        }
         if (creative_id) {
           creativeSpec = { creative_id };
         } else if (creative) {

@@ -436,6 +436,7 @@ Args:
   - status (string, optional): New campaign status - ACTIVE, PAUSED, DELETED, ARCHIVED
   - daily_budget (number, optional): New daily budget in cents (e.g., 1000 = $10.00). Cannot be set if lifetime_budget is provided.
   - lifetime_budget (number, optional): New lifetime budget in cents (e.g., 10000 = $100.00). Cannot be set if daily_budget is provided.
+  - bid_strategy (string, optional): New bid strategy. Options: LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, LOWEST_COST_WITH_MIN_ROAS
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
 Returns:
@@ -469,13 +470,24 @@ Errors:
       lifetime_budget: lifetimeBudgetSchema.describe(
         "New lifetime budget in cents (e.g., 10000 = $100.00)",
       ),
+      bid_strategy: z
+        .enum(BID_STRATEGIES)
+        .optional()
+        .describe("New bid strategy"),
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
     UPDATE_ANNOTATIONS,
     withToolHandler(
       async (
-        { campaign_id, name, status, daily_budget, lifetime_budget },
+        {
+          campaign_id,
+          name,
+          status,
+          daily_budget,
+          lifetime_budget,
+          bid_strategy,
+        },
         { client, format },
       ) => {
         await client.updateCampaign(campaign_id, {
@@ -483,6 +495,7 @@ Errors:
           status,
           daily_budget,
           lifetime_budget,
+          bid_strategy,
         });
 
         return createSuccessResponse(

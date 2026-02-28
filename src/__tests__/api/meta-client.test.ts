@@ -473,6 +473,24 @@ describe("MetaClient", () => {
       const body = JSON.parse(options.body as string);
       expect(body.bid_strategy).toBeUndefined();
     });
+
+    it("should pass start_time and stop_time when provided", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { id: "123" } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.createCampaign("act_123", {
+        name: "Scheduled Campaign",
+        objective: "OUTCOME_SALES",
+        daily_budget: 5000,
+        start_time: "2026-03-01T00:00:00+0000",
+        stop_time: "2026-03-15T23:59:59+0000",
+      });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.start_time).toBe("2026-03-01T00:00:00+0000");
+      expect(body.stop_time).toBe("2026-03-15T23:59:59+0000");
+    });
   });
 
   describe("updateCampaign", () => {
@@ -525,6 +543,21 @@ describe("MetaClient", () => {
       const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
       const body = JSON.parse(options.body as string);
       expect(body.bid_strategy).toBe("LOWEST_COST_WITHOUT_CAP");
+    });
+
+    it("should pass start_time and stop_time when provided", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { success: true } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.updateCampaign("camp_123", {
+        stop_time: "2026-04-01T00:00:00+0000",
+      });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.stop_time).toBe("2026-04-01T00:00:00+0000");
     });
   });
 

@@ -312,6 +312,8 @@ Args:
   - daily_budget (number, optional): Daily budget in cents (e.g., 1000 = $10.00). Required if lifetime_budget not provided.
   - lifetime_budget (number, optional): Lifetime budget in cents (e.g., 10000 = $100.00). Required if daily_budget not provided.
   - bid_strategy (string, optional): Bid strategy. Options: LOWEST_COST_WITHOUT_CAP (default, recommended), LOWEST_COST_WITH_BID_CAP, COST_CAP, LOWEST_COST_WITH_MIN_ROAS
+  - start_time (string, optional): Campaign start time in ISO 8601 format
+  - stop_time (string, optional): Campaign stop time in ISO 8601 format
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
 Returns:
@@ -362,6 +364,18 @@ Errors:
         .describe(
           "Bid strategy. Options: LOWEST_COST_WITHOUT_CAP (default, recommended), LOWEST_COST_WITH_BID_CAP, COST_CAP, LOWEST_COST_WITH_MIN_ROAS",
         ),
+      start_time: z
+        .string()
+        .optional()
+        .describe(
+          "Campaign start time in ISO 8601 format (e.g., '2026-03-01T00:00:00+0000')",
+        ),
+      stop_time: z
+        .string()
+        .optional()
+        .describe(
+          "Campaign stop time in ISO 8601 format (e.g., '2026-03-15T23:59:59+0000')",
+        ),
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
@@ -377,6 +391,8 @@ Errors:
           daily_budget,
           lifetime_budget,
           bid_strategy,
+          start_time,
+          stop_time,
         },
         { client, format },
       ) => {
@@ -408,6 +424,8 @@ Errors:
           daily_budget,
           lifetime_budget,
           bid_strategy,
+          start_time,
+          stop_time,
         });
 
         return createSuccessResponse(
@@ -437,6 +455,8 @@ Args:
   - daily_budget (number, optional): New daily budget in cents (e.g., 1000 = $10.00). Cannot be set if lifetime_budget is provided.
   - lifetime_budget (number, optional): New lifetime budget in cents (e.g., 10000 = $100.00). Cannot be set if daily_budget is provided.
   - bid_strategy (string, optional): New bid strategy. Options: LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, LOWEST_COST_WITH_MIN_ROAS
+  - start_time (string, optional): New campaign start time in ISO 8601 format
+  - stop_time (string, optional): New campaign stop time in ISO 8601 format
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
 Returns:
@@ -474,6 +494,14 @@ Errors:
         .enum(BID_STRATEGIES)
         .optional()
         .describe("New bid strategy"),
+      start_time: z
+        .string()
+        .optional()
+        .describe("Campaign start time in ISO 8601 format"),
+      stop_time: z
+        .string()
+        .optional()
+        .describe("Campaign stop time in ISO 8601 format"),
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
@@ -487,6 +515,8 @@ Errors:
           daily_budget,
           lifetime_budget,
           bid_strategy,
+          start_time,
+          stop_time,
         },
         { client, format },
       ) => {
@@ -496,6 +526,8 @@ Errors:
           daily_budget,
           lifetime_budget,
           bid_strategy,
+          start_time,
+          stop_time,
         });
 
         return createSuccessResponse(

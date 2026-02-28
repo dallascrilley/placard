@@ -719,6 +719,26 @@ describe("MetaClient", () => {
       const body = JSON.parse(options.body as string);
       expect(body.promoted_object).toBeUndefined();
     });
+
+    it("should pass destination_type when provided", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { id: "adset_123" } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.createAdSet("act_123", {
+        name: "Call Ad Set",
+        campaign_id: "camp_123",
+        optimization_goal: "QUALITY_CALL",
+        billing_event: "IMPRESSIONS",
+        targeting: { geo_locations: { countries: ["US"] } },
+        destination_type: "PHONE_CALL",
+      });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.destination_type).toBe("PHONE_CALL");
+    });
   });
 
   describe("getAdSetDetails", () => {

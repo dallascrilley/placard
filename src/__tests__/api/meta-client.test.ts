@@ -540,6 +540,23 @@ describe("MetaClient", () => {
       const body = JSON.parse(options.body as string);
       expect(body.spend_cap).toBeUndefined();
     });
+
+    it("should pass special_ad_category_country when provided", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { id: "123" } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.createCampaign("act_123", {
+        name: "Employment Campaign",
+        objective: "OUTCOME_LEADS",
+        daily_budget: 5000,
+        special_ad_categories: ["EMPLOYMENT"],
+        special_ad_category_country: ["US"],
+      });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.special_ad_category_country).toEqual(["US"]);
+    });
   });
 
   describe("updateCampaign", () => {

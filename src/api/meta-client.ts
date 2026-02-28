@@ -243,6 +243,7 @@ export class MetaClient {
       objective: string;
       status?: string | undefined;
       special_ad_categories?: string[] | undefined;
+      special_ad_category_country?: string[] | undefined;
       daily_budget?: number | undefined;
       lifetime_budget?: number | undefined;
       bid_strategy?: string | undefined;
@@ -258,6 +259,9 @@ export class MetaClient {
       status: data.status ?? "PAUSED",
       special_ad_categories: data.special_ad_categories ?? [],
     };
+
+    if (data.special_ad_category_country?.length)
+      body["special_ad_category_country"] = data.special_ad_category_country;
 
     if (data.daily_budget !== undefined) {
       body["daily_budget"] = data.daily_budget;

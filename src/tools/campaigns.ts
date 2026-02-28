@@ -317,6 +317,7 @@ Args:
   - stop_time (string, optional): Campaign stop time in ISO 8601 format
   - promoted_object (object, optional): Promoted object for event/app campaigns. Fields: event_id, application_id, pixel_id, custom_event_type, etc.
   - spend_cap (number, optional): Hard cap on total campaign spend in cents (e.g., 50000 = $500). Different from lifetime_budget.
+  - special_ad_category_country (array, optional): ISO country codes (e.g. ['US']). Required when special_ad_categories includes HOUSING, EMPLOYMENT, CREDIT, or ISSUES_ELECTIONS_POLITICS.
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
 Returns:
@@ -354,6 +355,12 @@ Errors:
         .optional()
         .describe(
           "Special ad categories if applicable (required for housing, employment, credit, political ads)",
+        ),
+      special_ad_category_country: z
+        .array(z.string().length(2))
+        .optional()
+        .describe(
+          "ISO country codes when using special_ad_categories (e.g. ['US']). Required for HOUSING, EMPLOYMENT, CREDIT, ISSUES_ELECTIONS_POLITICS.",
         ),
       daily_budget: dailyBudgetSchema.describe(
         "Daily budget in cents (required if no lifetime_budget)",
@@ -398,6 +405,7 @@ Errors:
           objective,
           status,
           special_ad_categories,
+          special_ad_category_country,
           daily_budget,
           lifetime_budget,
           bid_strategy,
@@ -408,7 +416,6 @@ Errors:
         },
         { client, format },
       ) => {
-        // Validate budget requirement
         if (daily_budget === undefined && lifetime_budget === undefined) {
           return createErrorResponse(
             new Error(
@@ -418,21 +425,41 @@ Errors:
           );
         }
 
-        const normalizedId = normalizeAccountId(account_id);
-
-        // Filter out "NONE" from special_ad_categories if present
         const filteredCategories = special_ad_categories?.filter(
           (cat: string) => cat !== "NONE",
         );
+        const hasSpecialCategory =
+          filteredCategories && filteredCategories.length > 0;
+        const requiresCountry =
+          hasSpecialCategory &&
+          filteredCategories?.some(
+            (c: string) =>
+              c === "EMPLOYMENT" ||
+              c === "HOUSING" ||
+              c === "CREDIT" ||
+              c === "ISSUES_ELECTIONS_POLITICS",
+          );
+        if (
+          requiresCountry &&
+          (!special_ad_category_country ||
+            special_ad_category_country.length === 0)
+        ) {
+          return createErrorResponse(
+            new Error(
+              "special_ad_category_country is required when using special_ad_categories for HOUSING, EMPLOYMENT, CREDIT, or ISSUES_ELECTIONS_POLITICS. Provide ISO country codes (e.g. ['US']).",
+            ),
+            format,
+          );
+        }
+
+        const normalizedId = normalizeAccountId(account_id);
 
         const result = await client.createCampaign(normalizedId, {
           name,
           objective,
           status: status ?? "PAUSED",
-          special_ad_categories:
-            filteredCategories && filteredCategories.length > 0
-              ? filteredCategories
-              : [],
+          special_ad_categories: hasSpecialCategory ? filteredCategories : [],
+          special_ad_category_country,
           daily_budget,
           lifetime_budget,
           bid_strategy,

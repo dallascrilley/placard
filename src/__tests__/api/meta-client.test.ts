@@ -511,6 +511,21 @@ describe("MetaClient", () => {
       expect(body).toEqual({ status: "PAUSED" });
       expect(body.name).toBeUndefined();
     });
+
+    it("should pass bid_strategy when provided", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { success: true } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.updateCampaign("camp_123", {
+        bid_strategy: "LOWEST_COST_WITHOUT_CAP",
+      });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.bid_strategy).toBe("LOWEST_COST_WITHOUT_CAP");
+    });
   });
 
   describe("getAdSets", () => {

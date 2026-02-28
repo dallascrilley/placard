@@ -281,6 +281,7 @@ export class MetaClient {
       status?: string | undefined;
       daily_budget?: number | undefined;
       lifetime_budget?: number | undefined;
+      bid_strategy?: string | undefined;
     },
   ): Promise<{ success: boolean }> {
     const body: Record<string, unknown> = {};
@@ -291,6 +292,8 @@ export class MetaClient {
       body["daily_budget"] = data.daily_budget;
     if (data.lifetime_budget !== undefined)
       body["lifetime_budget"] = data.lifetime_budget;
+    if (data.bid_strategy !== undefined)
+      body["bid_strategy"] = data.bid_strategy;
 
     return this.request<{ success: boolean }>(`/${campaignId}`, {
       method: "POST",

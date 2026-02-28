@@ -289,6 +289,12 @@ Errors:
         .describe(
           "Where users go after click (PHONE_CALL, MESSENGER, FACEBOOK, etc.). Must match objective/optimization_goal.",
         ),
+      is_dynamic_creative: z
+        .boolean()
+        .optional()
+        .describe(
+          "Enable Advantage+ dynamic creative. Set at creation only — cannot change later.",
+        ),
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
@@ -311,6 +317,7 @@ Errors:
           end_time,
           promoted_object,
           destination_type,
+          is_dynamic_creative,
         },
         { client, format },
       ) => {
@@ -343,6 +350,7 @@ Errors:
           end_time,
           promoted_object,
           destination_type,
+          is_dynamic_creative,
         });
 
         return createSuccessResponse(

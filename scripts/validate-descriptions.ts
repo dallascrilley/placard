@@ -17,6 +17,7 @@ const TOOL_FILES = [
   "src/tools/creatives.ts",
   "src/tools/targeting.ts",
   "src/tools/insights.ts",
+  "src/tools/composite.ts",
 ];
 
 const MIN_DESCRIPTION_LENGTH = 200;

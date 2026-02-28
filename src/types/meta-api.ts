@@ -179,6 +179,17 @@ export interface Campaign {
   special_ad_categories: string[];
   special_ad_category?: string;
   special_ad_category_country?: string[];
+  promoted_object?: PromotedObject;
+}
+
+export interface PromotedObject {
+  pixel_id?: string;
+  custom_event_type?: string;
+  event_id?: string;
+  application_id?: string;
+  object_store_url?: string;
+  offer_id?: string;
+  page_id?: string;
 }
 
 // Ad Set
@@ -192,6 +203,7 @@ export interface AdSet {
   billing_event: BillingEvent;
   bid_strategy?: BidStrategy;
   bid_amount?: number;
+  promoted_object?: PromotedObject;
   daily_budget?: string;
   lifetime_budget?: string;
   budget_remaining?: string;

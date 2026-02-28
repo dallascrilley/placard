@@ -187,6 +187,19 @@ export const BID_STRATEGIES = [
   "LOWEST_COST_WITH_MIN_ROAS",
 ] as const;
 
+export const CUSTOM_EVENT_TYPES = [
+  "PURCHASE",
+  "LEAD",
+  "COMPLETE_REGISTRATION",
+  "ADD_TO_CART",
+  "INITIATE_CHECKOUT",
+  "SEARCH",
+  "ADD_PAYMENT_INFO",
+  "ADD_TO_WISHLIST",
+  "CONTENT_VIEW",
+  "OTHER",
+] as const;
+
 /**
  * Valid ad set statuses.
  */

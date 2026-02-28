@@ -327,4 +327,46 @@ Errors:
       );
     }),
   );
+
+  /**
+   * Soft-delete an ad
+   */
+  server.tool(
+    "meta_delete_ad",
+    `Soft-delete an ad by setting its status to DELETED.
+
+Convenience wrapper for meta_update_ad with status: DELETED. Ads are not permanently removed; they can be filtered out of lists.
+
+Args:
+  - ad_id (string, required): Ad ID to delete
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')
+
+Returns:
+  {
+    "success": true,
+    "message": "Ad 123456789 deleted successfully"
+  }
+
+Examples:
+  - Delete ad: { "ad_id": "123456789" }
+
+Errors:
+  - 190: Token expired - use meta_get_login_link to re-authenticate
+  - 4/17/32: Rate limited - wait and retry
+  - 10/200/294: Permission denied
+  - 100: Invalid ad ID`,
+    {
+      ad_id: z.string().describe("Ad ID to delete"),
+      user_id: userIdSchema,
+      response_format: responseFormatSchema,
+    },
+    UPDATE_ANNOTATIONS,
+    withToolHandler(async ({ ad_id }, { client, format }) => {
+      await client.updateAd(ad_id, { status: "DELETED" });
+      return createSuccessResponse(
+        { message: `Ad ${ad_id} deleted successfully` },
+        format,
+      );
+    }),
+  );
 }

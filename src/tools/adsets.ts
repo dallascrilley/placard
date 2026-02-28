@@ -23,6 +23,67 @@ export function validateAdvantageAgeConstraint(
   return null;
 }
 
+const CITY_RADIUS_MILES = { min: 10, max: 50 };
+const CITY_RADIUS_KM = { min: 17, max: 80 };
+const CUSTOM_RADIUS_MILES = { min: 0.63, max: 50 };
+const CUSTOM_RADIUS_KM = { min: 1, max: 80 };
+
+export function validateGeoRadius(
+  targeting: Record<string, unknown>,
+): string | null {
+  const geo = targeting?.["geo_locations"] as
+    | Record<string, unknown>
+    | undefined;
+  if (!geo) return null;
+
+  const cities = geo["cities"] as Array<Record<string, unknown>> | undefined;
+  if (cities && Array.isArray(cities)) {
+    for (const loc of cities) {
+      const radius = loc["radius"] as number | undefined;
+      if (radius === undefined) continue;
+      const unit = (loc["distance_unit"] as string) ?? "mile";
+      const isKm = unit === "kilometer" || unit === "kilometre";
+      const { min, max } = isKm ? CITY_RADIUS_KM : CITY_RADIUS_MILES;
+      const unitLabel = isKm ? "km" : "mi";
+      if (radius < min || radius > max) {
+        return `City radius must be ${min}–${max} ${unitLabel}. Your value: ${radius} ${unitLabel}`;
+      }
+    }
+  }
+
+  const custom = geo["custom_locations"] as
+    | Array<Record<string, unknown>>
+    | undefined;
+  if (custom && Array.isArray(custom)) {
+    for (const loc of custom) {
+      const radius = loc["radius"] as number | undefined;
+      if (radius === undefined) continue;
+      const unit = (loc["distance_unit"] as string) ?? "mile";
+      const isKm = unit === "kilometer" || unit === "kilometre";
+      const { min, max } = isKm ? CUSTOM_RADIUS_KM : CUSTOM_RADIUS_MILES;
+      const unitLabel = isKm ? "km" : "mi";
+      if (radius < min || radius > max) {
+        return `Custom location radius must be ${min}–${max} ${unitLabel}. Your value: ${radius} ${unitLabel}`;
+      }
+    }
+  }
+
+  return null;
+}
+
+export function validatePromotedObjectConstraints(
+  optimization_goal: string,
+  promoted_object: Record<string, unknown> | undefined,
+): string | null {
+  if (
+    optimization_goal === "EVENT_RESPONSES" &&
+    promoted_object?.["event_id"]
+  ) {
+    return "EVENT_RESPONSES optimization does not support promoted_object.event_id. Event linking goes in the ad creative link_data URL, not the ad set.";
+  }
+  return null;
+}
+
 import { z } from "zod";
 import {
   ADSET_STATUSES,
@@ -224,14 +285,14 @@ Args:
   - campaign_id (string, required): Parent campaign ID
   - optimization_goal (string, required): What the ad set optimizes for. Options: LINK_CLICKS, OUTCOME_CLICKS, IMPRESSIONS, REACH, LANDING_PAGE_VIEWS, POST_ENGAGEMENT, THRUPLAY, etc.
   - billing_event (string, required): Billing event type. Options: IMPRESSIONS, LINK_CLICKS, OFFER_CLAIMS, PAGE_LIKES, POST_ENGAGEMENT, THRUPLAY
-  - targeting (object, required): Targeting specification object with geo_locations, age_min, age_max, genders, interests, behaviors, etc. Note: When using Advantage+ audience (targeting.targeting_automation.advantage_audience = 1 or omitted), age_max must be 65. Meta rejects age_max < 65 with "Maximum age is below threshold". For restrictive age targeting, set targeting_automation.advantage_audience = 0.
+  - targeting (object, required): Targeting specification object with geo_locations, age_min, age_max, genders, interests, behaviors, etc. Note: When using Advantage+ audience (targeting.targeting_automation.advantage_audience = 1 or omitted), age_max must be 65. Meta rejects age_max < 65 with "Maximum age is below threshold". For restrictive age targeting, set targeting_automation.advantage_audience = 0. Geo radius limits: geo_locations.cities radius 10–50 mi (17–80 km); geo_locations.custom_locations radius 0.63–50 mi (1–80 km).
   - status (string, optional): Initial ad set status - ACTIVE or PAUSED (default: PAUSED)
   - daily_budget (number, optional): Daily budget in cents (e.g., 1000 = $10.00). Required if lifetime_budget not provided.
   - lifetime_budget (number, optional): Lifetime budget in cents (e.g., 10000 = $100.00). Required if daily_budget not provided.
   - bid_amount (number, optional): Bid amount in cents (required for some optimization goals)
   - bid_strategy (string, optional): Bid strategy. Options: LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, TARGET_COST
   - start_time (string, optional): Start time in ISO 8601 format (e.g., "2025-01-01T00:00:00+0000")
-  - promoted_object (object, optional): Promoted object for conversion/event/app ad sets. Required for OFFSITE_CONVERSIONS. Fields: pixel_id, custom_event_type (PURCHASE, LEAD, COMPLETE_REGISTRATION, etc.), event_id, application_id, object_store_url, offer_id, page_id
+  - promoted_object (object, optional): Promoted object for conversion/event/app ad sets. Required for OFFSITE_CONVERSIONS. Fields: pixel_id, custom_event_type (PURCHASE, LEAD, COMPLETE_REGISTRATION, etc.), event_id, application_id, object_store_url, offer_id, page_id. Note: promoted_object.event_id is not supported with OUTCOME_ENGAGEMENT/EVENT_RESPONSES. Use promoted_object only with OFFSITE_CONVERSIONS or applicable conversion objectives.
   - destination_type (string, optional): Where users go after click. Must match objective/optimization_goal. Options: PHONE_CALL, MESSENGER, WHATSAPP, FACEBOOK, WEBSITE, etc.
   - pacing_type (string, optional): Delivery speed. standard (default), no_pacing (accelerated), day_parting (requires adset_schedule + lifetime_budget)
   - end_time (string, optional): End time in ISO 8601 format
@@ -344,6 +405,21 @@ Errors:
           );
         }
 
+        const radiusErr = validateGeoRadius(
+          targeting as Record<string, unknown>,
+        );
+        if (radiusErr) {
+          return createErrorResponse(new Error(radiusErr), format);
+        }
+
+        const promotedErr = validatePromotedObjectConstraints(
+          optimization_goal,
+          promoted_object as Record<string, unknown> | undefined,
+        );
+        if (promotedErr) {
+          return createErrorResponse(new Error(promotedErr), format);
+        }
+
         const result = await client.createAdSet(normalizedId, {
           name,
           campaign_id,
@@ -393,6 +469,7 @@ Args:
   - bid_amount (number, optional): New bid amount in cents
   - bid_strategy (string, optional): New bid strategy. Options: LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, TARGET_COST
   - pacing_type (string, optional): New delivery speed. standard, no_pacing, day_parting
+  - promoted_object (object, optional): Promoted object for conversion/event/app ad sets. Fields: pixel_id, custom_event_type, event_id, application_id, etc.
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
 Returns:
@@ -440,6 +517,7 @@ Errors:
         .enum(PACING_TYPES)
         .optional()
         .describe("New pacing: standard, no_pacing, day_parting"),
+      promoted_object: promotedObjectSchema,
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
@@ -456,6 +534,7 @@ Errors:
           bid_amount,
           bid_strategy,
           pacing_type,
+          promoted_object,
         },
         { client, format },
       ) => {
@@ -468,6 +547,7 @@ Errors:
           bid_amount,
           bid_strategy,
           pacing_type,
+          promoted_object,
         });
 
         return createSuccessResponse(
@@ -478,5 +558,47 @@ Errors:
         );
       },
     ),
+  );
+
+  /**
+   * Soft-delete an ad set
+   */
+  server.tool(
+    "meta_delete_adset",
+    `Soft-delete an ad set by setting its status to DELETED.
+
+Convenience wrapper for meta_update_adset with status: DELETED. Ad sets are not permanently removed; they can be filtered out of lists.
+
+Args:
+  - adset_id (string, required): Ad set ID to delete
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')
+
+Returns:
+  {
+    "success": true,
+    "message": "Ad set 123456789 deleted successfully"
+  }
+
+Examples:
+  - Delete ad set: { "adset_id": "123456789" }
+
+Errors:
+  - 190: Token expired - use meta_get_login_link to re-authenticate
+  - 4/17/32: Rate limited - wait and retry
+  - 10/200/294: Permission denied
+  - 100: Invalid ad set ID`,
+    {
+      adset_id: z.string().describe("Ad set ID to delete"),
+      user_id: userIdSchema,
+      response_format: responseFormatSchema,
+    },
+    UPDATE_ANNOTATIONS,
+    withToolHandler(async ({ adset_id }, { client, format }) => {
+      await client.updateAdSet(adset_id, { status: "DELETED" });
+      return createSuccessResponse(
+        { message: `Ad set ${adset_id} deleted successfully` },
+        format,
+      );
+    }),
   );
 }

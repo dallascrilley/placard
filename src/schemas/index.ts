@@ -10,6 +10,7 @@ export {
   accountIdSchema,
   // Pagination
   createLimitSchema,
+  paginationCursorSchema,
   // Insights
   datePresetSchema,
   timeRangeSchema,

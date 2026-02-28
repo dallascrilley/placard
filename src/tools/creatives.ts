@@ -14,6 +14,8 @@ import {
 import {
   accountIdSchema,
   createLimitSchema,
+  fieldsSchema,
+  paginationCursorSchema,
   responseFormatSchema,
   userIdSchema,
 } from "../schemas/index.js";
@@ -37,6 +39,9 @@ Retrieves ad creatives (reusable creative assets) from a Meta ad account. Creati
 Args:
   - account_id (string, required): Ad account ID (with or without 'act_' prefix)
   - limit (number, optional): Maximum creatives to return, 1-100 (default: 25)
+  - after (string, optional): Pagination cursor to fetch the next page
+  - before (string, optional): Pagination cursor to fetch the previous page
+  - fields (array[string], optional): Specific creative fields to return
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
 Returns:
@@ -63,6 +68,8 @@ Returns:
 
 Examples:
   - Get first 25 creatives: { "account_id": "act_123" }
+  - Get next page: { "account_id": "act_123", "after": "QVFI..." }
+  - Minimal fields: { "account_id": "act_123", "fields": ["id", "name", "body"] }
   - Get more: { "account_id": "act_123", "limit": 100 }
 
 Errors:
@@ -72,16 +79,32 @@ Errors:
     {
       account_id: accountIdSchema,
       limit: createLimitSchema("creatives"),
+      after: paginationCursorSchema,
+      before: paginationCursorSchema,
+      fields: fieldsSchema,
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({ account_id, limit, user_id, response_format }) => {
+    async ({
+      account_id,
+      limit,
+      after,
+      before,
+      fields,
+      user_id,
+      response_format,
+    }) => {
       const format = response_format ?? "json";
       try {
         const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
-        const response = await client.getAdCreatives(normalizedId, limit ?? 25);
+        const response = await client.getAdCreatives(normalizedId, {
+          limit: limit ?? 25,
+          after,
+          before,
+          fields,
+        });
 
         return createSuccessResponse(
           {

@@ -7,7 +7,11 @@
  */
 
 import { z } from "zod";
-import { BREAKDOWNS, DATE_PRESETS } from "../constants/index.js";
+import {
+  BREAKDOWNS,
+  CUSTOM_EVENT_TYPES,
+  DATE_PRESETS,
+} from "../constants/index.js";
 
 // =============================================================================
 // Identity Schemas
@@ -135,6 +139,34 @@ export const lifetimeBudgetSchema = z
   .positive()
   .optional()
   .describe("Lifetime budget in cents (e.g., 10000 = $100.00)");
+
+// =============================================================================
+// Promoted Object Schema
+// =============================================================================
+
+export const promotedObjectSchema = z
+  .object({
+    pixel_id: z
+      .string()
+      .optional()
+      .describe("Facebook Pixel ID for conversion tracking"),
+    custom_event_type: z
+      .enum(CUSTOM_EVENT_TYPES)
+      .optional()
+      .describe("Conversion event type (required with pixel_id)"),
+    event_id: z.string().optional().describe("Facebook Event ID"),
+    application_id: z
+      .string()
+      .optional()
+      .describe("App ID for app promotion campaigns"),
+    object_store_url: z.string().optional().describe("App store URL"),
+    offer_id: z.string().optional().describe("Offer ID"),
+    page_id: z.string().optional().describe("Facebook Page ID"),
+  })
+  .optional()
+  .describe(
+    "Promoted object for conversion, event, and app campaigns. Required for OFFSITE_CONVERSIONS optimization.",
+  );
 
 // =============================================================================
 // Targeting Schemas

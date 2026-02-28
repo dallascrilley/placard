@@ -200,6 +200,31 @@ export const CUSTOM_EVENT_TYPES = [
   "OTHER",
 ] as const;
 
+export const DESTINATION_TYPES = [
+  "UNDEFINED",
+  "WEBSITE",
+  "APP",
+  "MESSENGER",
+  "WHATSAPP",
+  "PHONE_CALL",
+  "FACEBOOK",
+  "INSTAGRAM_PROFILE",
+  "INSTAGRAM_DIRECT",
+  "MESSAGING_MESSENGER_WHATSAPP",
+  "MESSAGING_INSTAGRAM_DIRECT_MESSENGER",
+  "MESSAGING_INSTAGRAM_DIRECT_MESSENGER_WHATSAPP",
+  "MESSAGING_INSTAGRAM_DIRECT_WHATSAPP",
+  "ON_AD",
+  "ON_POST",
+  "ON_VIDEO",
+  "ON_PAGE",
+  "ON_EVENT",
+  "SHOP_AUTOMATIC",
+  "APPLINKS_AUTOMATIC",
+] as const;
+
+export const PACING_TYPES = ["standard", "no_pacing", "day_parting"] as const;
+
 /**
  * Valid ad set statuses.
  */

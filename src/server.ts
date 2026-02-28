@@ -5,6 +5,7 @@ import { registerAdTools } from "./tools/ads.js";
 import { registerAdSetTools } from "./tools/adsets.js";
 import { registerAuthTools } from "./tools/auth.js";
 import { registerCampaignTools } from "./tools/campaigns.js";
+import { registerCompositeTools } from "./tools/composite.js";
 import { registerCreativeTools } from "./tools/creatives.js";
 import { registerInsightsTools } from "./tools/insights.js";
 import { registerTargetingTools } from "./tools/targeting.js";
@@ -89,6 +90,9 @@ Errors:
 
   // Insights tools (get_account_insights, get_campaign_insights, get_adset_insights, get_ad_insights)
   registerInsightsTools(server);
+
+  // Composite tools (campaign_summary, account_overview, search_ads, validate_campaign_config)
+  registerCompositeTools(server);
 
   return server;
 }

@@ -19,6 +19,8 @@ export {
   // Budget
   dailyBudgetSchema,
   lifetimeBudgetSchema,
+  // Promoted object
+  promotedObjectSchema,
   // Targeting
   targetingSchema,
   optionalTargetingSchema,

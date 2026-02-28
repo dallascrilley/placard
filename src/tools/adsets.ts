@@ -22,6 +22,7 @@ import {
   fieldsSchema,
   lifetimeBudgetSchema,
   optionalTargetingSchema,
+  promotedObjectSchema,
   paginationCursorSchema,
   responseFormatSchema,
   targetingSchema,
@@ -209,6 +210,7 @@ Args:
   - bid_amount (number, optional): Bid amount in cents (required for some optimization goals)
   - bid_strategy (string, optional): Bid strategy. Options: LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, TARGET_COST
   - start_time (string, optional): Start time in ISO 8601 format (e.g., "2025-01-01T00:00:00+0000")
+  - promoted_object (object, optional): Promoted object for conversion/event/app ad sets. Required for OFFSITE_CONVERSIONS. Fields: pixel_id, custom_event_type (PURCHASE, LEAD, COMPLETE_REGISTRATION, etc.), event_id, application_id, object_store_url, offer_id, page_id
   - end_time (string, optional): End time in ISO 8601 format
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
@@ -221,6 +223,7 @@ Returns:
 
 Examples:
   - Basic ad set: { "account_id": "act_123", "name": "US Adults 25-45", "campaign_id": "987", "optimization_goal": "LINK_CLICKS", "billing_event": "IMPRESSIONS", "targeting": { "age_min": 25, "age_max": 45, "geo_locations": { "countries": ["US"] } }, "daily_budget": 2500 }
+  - Purchase conversion: { "account_id": "act_123", "name": "Purchase Conversions", "campaign_id": "987", "optimization_goal": "OFFSITE_CONVERSIONS", "billing_event": "IMPRESSIONS", "targeting": { "geo_locations": { "countries": ["US"] } }, "daily_budget": 2500, "promoted_object": { "pixel_id": "123456", "custom_event_type": "PURCHASE" } }
   - With lifetime budget: { "account_id": "act_123", "name": "Limited Run", "campaign_id": "987", "optimization_goal": "IMPRESSIONS", "billing_event": "IMPRESSIONS", "targeting": { "geo_locations": { "countries": ["US"] } }, "lifetime_budget": 10000 }
 
 Errors:
@@ -258,6 +261,7 @@ Errors:
         .optional()
         .describe("Start time in ISO 8601 format"),
       end_time: z.string().optional().describe("End time in ISO 8601 format"),
+      promoted_object: promotedObjectSchema,
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
@@ -278,6 +282,7 @@ Errors:
           bid_strategy,
           start_time,
           end_time,
+          promoted_object,
         },
         { client, format },
       ) => {
@@ -296,6 +301,7 @@ Errors:
           bid_strategy,
           start_time,
           end_time,
+          promoted_object,
         });
 
         return createSuccessResponse(

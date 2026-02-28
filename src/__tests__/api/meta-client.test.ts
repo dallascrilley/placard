@@ -564,6 +564,53 @@ describe("MetaClient", () => {
     });
   });
 
+  describe("createAdSet", () => {
+    it("should pass promoted_object when provided", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { id: "adset_123" } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.createAdSet("act_123", {
+        name: "Conversions Ad Set",
+        campaign_id: "camp_123",
+        optimization_goal: "OFFSITE_CONVERSIONS",
+        billing_event: "IMPRESSIONS",
+        targeting: { geo_locations: { countries: ["US"] } },
+        promoted_object: {
+          pixel_id: "pixel_456",
+          custom_event_type: "PURCHASE",
+        },
+      });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(JSON.parse(body.promoted_object as string)).toEqual({
+        pixel_id: "pixel_456",
+        custom_event_type: "PURCHASE",
+      });
+    });
+
+    it("should not include promoted_object when not provided", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { id: "adset_123" } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.createAdSet("act_123", {
+        name: "Basic Ad Set",
+        campaign_id: "camp_123",
+        optimization_goal: "LINK_CLICKS",
+        billing_event: "IMPRESSIONS",
+        targeting: { geo_locations: { countries: ["US"] } },
+      });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.promoted_object).toBeUndefined();
+    });
+  });
+
   describe("getAdSetDetails", () => {
     it("should allow overriding returned fields", async () => {
       mockFetch.mockResolvedValue(

@@ -372,6 +372,7 @@ export class MetaClient {
       bid_strategy?: string | undefined;
       start_time?: string | undefined;
       end_time?: string | undefined;
+      promoted_object?: object | undefined;
     },
   ): Promise<{ id: string }> {
     const body: Record<string, unknown> = {
@@ -392,6 +393,9 @@ export class MetaClient {
       body["bid_strategy"] = data.bid_strategy;
     if (data.start_time !== undefined) body["start_time"] = data.start_time;
     if (data.end_time !== undefined) body["end_time"] = data.end_time;
+    if (data.promoted_object !== undefined) {
+      body["promoted_object"] = JSON.stringify(data.promoted_object);
+    }
 
     return this.request<{ id: string }>(`/${accountId}/adsets`, {
       method: "POST",

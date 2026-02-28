@@ -6,7 +6,6 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { createMetaClient } from "../api/meta-client.js";
 import {
   CAMPAIGN_OBJECTIVES,
   CAMPAIGN_STATUSES,
@@ -26,6 +25,7 @@ import {
   userIdSchema,
 } from "../schemas/index.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
+import { withToolHandler } from "../utils/tool-handler.js";
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -99,20 +99,12 @@ Errors:
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({
-      account_id,
-      limit,
-      after,
-      before,
-      fields,
-      status,
-      user_id,
-      response_format,
-    }) => {
-      const format = response_format ?? "json";
-      try {
+    withToolHandler(
+      async (
+        { account_id, limit, after, before, fields, status },
+        { client, format },
+      ) => {
         const normalizedId = normalizeAccountId(account_id);
-        const client = createMetaClient({ userId: user_id ?? "default" });
         const response = await client.getCampaigns(normalizedId, {
           limit: limit ?? 25,
           after,
@@ -132,10 +124,8 @@ Errors:
           },
           format,
         );
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      },
+    ),
   );
 
   /**
@@ -192,10 +182,8 @@ Errors:
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({ campaign_id, limit, max_pages, user_id, response_format }) => {
-      const format = response_format ?? "json";
-      try {
-        const client = createMetaClient({ userId: user_id ?? "default" });
+    withToolHandler(
+      async ({ campaign_id, limit, max_pages }, { client, format }) => {
         const pageLimit = limit ?? 100;
         const pageCap = max_pages ?? 10;
         const uniqueCopy = new Set<string>();
@@ -247,10 +235,8 @@ Errors:
           },
           format,
         );
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      },
+    ),
   );
 
   /**
@@ -300,17 +286,11 @@ Errors:
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({ campaign_id, fields, user_id, response_format }) => {
-      const format = response_format ?? "json";
-      try {
-        const client = createMetaClient({ userId: user_id ?? "default" });
-        const campaign = await client.getCampaignDetails(campaign_id, fields);
+    withToolHandler(async ({ campaign_id, fields }, { client, format }) => {
+      const campaign = await client.getCampaignDetails(campaign_id, fields);
 
-        return createSuccessResponse({ campaign }, format);
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      return createSuccessResponse({ campaign }, format);
+    }),
   );
 
   /**
@@ -377,19 +357,19 @@ Errors:
       response_format: responseFormatSchema,
     },
     CREATE_ANNOTATIONS,
-    async ({
-      account_id,
-      name,
-      objective,
-      status,
-      special_ad_categories,
-      daily_budget,
-      lifetime_budget,
-      user_id,
-      response_format,
-    }) => {
-      const format = response_format ?? "json";
-      try {
+    withToolHandler(
+      async (
+        {
+          account_id,
+          name,
+          objective,
+          status,
+          special_ad_categories,
+          daily_budget,
+          lifetime_budget,
+        },
+        { client, format },
+      ) => {
         // Validate budget requirement
         if (daily_budget === undefined && lifetime_budget === undefined) {
           return createErrorResponse(
@@ -401,11 +381,10 @@ Errors:
         }
 
         const normalizedId = normalizeAccountId(account_id);
-        const client = createMetaClient({ userId: user_id ?? "default" });
 
         // Filter out "NONE" from special_ad_categories if present
         const filteredCategories = special_ad_categories?.filter(
-          (cat) => cat !== "NONE",
+          (cat: string) => cat !== "NONE",
         );
 
         const result = await client.createCampaign(normalizedId, {
@@ -427,10 +406,8 @@ Errors:
           },
           format,
         );
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      },
+    ),
   );
 
   /**
@@ -485,20 +462,12 @@ Errors:
       response_format: responseFormatSchema,
     },
     UPDATE_ANNOTATIONS,
-    async ({
-      campaign_id,
-      name,
-      status,
-      daily_budget,
-      lifetime_budget,
-      user_id,
-      response_format,
-    }) => {
-      const format = response_format ?? "json";
-      try {
-        const client = createMetaClient({ userId: user_id ?? "default" });
-
-        const result = await client.updateCampaign(campaign_id, {
+    withToolHandler(
+      async (
+        { campaign_id, name, status, daily_budget, lifetime_budget },
+        { client, format },
+      ) => {
+        await client.updateCampaign(campaign_id, {
           name,
           status,
           daily_budget,
@@ -511,9 +480,7 @@ Errors:
           },
           format,
         );
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      },
+    ),
   );
 }

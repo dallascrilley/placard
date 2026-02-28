@@ -6,7 +6,6 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { createMetaClient } from "../api/meta-client.js";
 import {
   DEFAULT_INSIGHT_FIELDS,
   INSIGHT_LEVELS,
@@ -22,10 +21,8 @@ import {
   userIdSchema,
 } from "../schemas/index.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
-import {
-  createErrorResponse,
-  createSuccessResponse,
-} from "../utils/tool-responses.js";
+import { withToolHandler } from "../utils/tool-handler.js";
+import { createSuccessResponse } from "../utils/tool-responses.js";
 
 export function registerInsightsTools(server: McpServer): void {
   /**
@@ -86,19 +83,12 @@ Errors:
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({
-      account_id,
-      date_preset,
-      time_range,
-      breakdown,
-      fields,
-      user_id,
-      response_format,
-    }) => {
-      const format = response_format ?? "json";
-      try {
+    withToolHandler(
+      async (
+        { account_id, date_preset, time_range, breakdown, fields },
+        { client, format },
+      ) => {
         const normalizedId = normalizeAccountId(account_id);
-        const client = createMetaClient({ userId: user_id ?? "default" });
         const response = await client.getInsights(normalizedId, {
           date_preset,
           time_range,
@@ -108,10 +98,8 @@ Errors:
         });
 
         return createSuccessResponse({ insights: response.data }, format);
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      },
+    ),
   );
 
   /**
@@ -178,19 +166,11 @@ Errors:
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({
-      campaign_id,
-      date_preset,
-      time_range,
-      level,
-      breakdown,
-      fields,
-      user_id,
-      response_format,
-    }) => {
-      const format = response_format ?? "json";
-      try {
-        const client = createMetaClient({ userId: user_id ?? "default" });
+    withToolHandler(
+      async (
+        { campaign_id, date_preset, time_range, level, breakdown, fields },
+        { client, format },
+      ) => {
         const response = await client.getInsights(campaign_id, {
           date_preset,
           time_range,
@@ -200,10 +180,8 @@ Errors:
         });
 
         return createSuccessResponse({ insights: response.data }, format);
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      },
+    ),
   );
 
   /**
@@ -265,18 +243,11 @@ Errors:
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({
-      adset_id,
-      date_preset,
-      time_range,
-      breakdown,
-      fields,
-      user_id,
-      response_format,
-    }) => {
-      const format = response_format ?? "json";
-      try {
-        const client = createMetaClient({ userId: user_id ?? "default" });
+    withToolHandler(
+      async (
+        { adset_id, date_preset, time_range, breakdown, fields },
+        { client, format },
+      ) => {
         const response = await client.getInsights(adset_id, {
           date_preset,
           time_range,
@@ -286,10 +257,8 @@ Errors:
         });
 
         return createSuccessResponse({ insights: response.data }, format);
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      },
+    ),
   );
 
   /**
@@ -354,18 +323,11 @@ Errors:
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({
-      ad_id,
-      date_preset,
-      time_range,
-      breakdown,
-      fields,
-      user_id,
-      response_format,
-    }) => {
-      const format = response_format ?? "json";
-      try {
-        const client = createMetaClient({ userId: user_id ?? "default" });
+    withToolHandler(
+      async (
+        { ad_id, date_preset, time_range, breakdown, fields },
+        { client, format },
+      ) => {
         const response = await client.getInsights(ad_id, {
           date_preset,
           time_range,
@@ -375,9 +337,7 @@ Errors:
         });
 
         return createSuccessResponse({ insights: response.data }, format);
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      },
+    ),
   );
 }

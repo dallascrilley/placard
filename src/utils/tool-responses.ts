@@ -124,12 +124,64 @@ function formatValue(value: unknown, indent = 0): string {
 }
 
 /**
+ * Renders an array of entities as markdown sections with headers.
+ */
+function formatArraySection(key: string, items: unknown[]): string[] {
+  if (items.length === 0) {
+    return [`\n### ${formatKeyAsTitle(key)}\n\nNo ${key} found.`];
+  }
+
+  const sections: string[] = [
+    `\n### ${formatKeyAsTitle(key)} (${items.length})`,
+  ];
+  for (const item of items) {
+    if (typeof item !== "object" || item === null) {
+      sections.push(`- ${formatValue(item)}`);
+      continue;
+    }
+    const obj = item as Record<string, unknown>;
+    const id =
+      obj["id"] || obj["campaign_id"] || obj["adset_id"] || obj["ad_id"];
+    const name = obj["name"];
+    if (id && name) {
+      sections.push(`\n#### ${name} (${id})`);
+    } else if (id) {
+      sections.push(`\n#### ID: ${id}`);
+    }
+    sections.push(formatValue(item, 0));
+  }
+  return sections;
+}
+
+/**
+ * Formats a single data key/value pair as markdown.
+ */
+function formatDataEntry(key: string, value: unknown): string[] {
+  if (value === undefined) return [];
+
+  if (Array.isArray(value)) {
+    return formatArraySection(key, value);
+  }
+  if (typeof value === "object" && value !== null) {
+    return [`\n### ${formatKeyAsTitle(key)}`, formatValue(value, 0)];
+  }
+  return [`\n**${formatKeyAsTitle(key)}:** ${value}`];
+}
+
+/**
+ * Renders pagination metadata as a markdown footer.
+ */
+function formatPagingFooter(paging: Record<string, unknown>): string {
+  const hasMore = !!paging["next"];
+  return `\n---\n*${hasMore ? "More results available" : "No more results"}*`;
+}
+
+/**
  * Converts a data object to human-readable markdown.
  */
 function toMarkdown(data: Record<string, unknown>): string {
   const sections: string[] = [];
 
-  // Handle common response patterns
   if (data["success"] !== undefined) {
     sections.push(data["success"] ? "✓ **Success**" : "✗ **Failed**");
   }
@@ -138,55 +190,17 @@ function toMarkdown(data: Record<string, unknown>): string {
     sections.push(`\n${data["message"]}`);
   }
 
-  // Format main data entities
   const dataKeys = Object.keys(data).filter(
     (k) => !["success", "message", "paging"].includes(k),
   );
 
   for (const key of dataKeys) {
-    const value = data[key];
-    if (value === undefined) continue;
-
-    // Special handling for arrays (lists of entities)
-    if (Array.isArray(value)) {
-      if (value.length === 0) {
-        sections.push(`\n### ${formatKeyAsTitle(key)}\n\nNo ${key} found.`);
-      } else {
-        sections.push(`\n### ${formatKeyAsTitle(key)} (${value.length})`);
-        for (const item of value) {
-          if (typeof item === "object" && item !== null) {
-            const obj = item as Record<string, unknown>;
-            const id =
-              obj["id"] ||
-              obj["campaign_id"] ||
-              obj["adset_id"] ||
-              obj["ad_id"];
-            const name = obj["name"];
-            if (id && name) {
-              sections.push(`\n#### ${name} (${id})`);
-            } else if (id) {
-              sections.push(`\n#### ID: ${id}`);
-            }
-            sections.push(formatValue(item, 0));
-          } else {
-            sections.push(`- ${formatValue(item)}`);
-          }
-        }
-      }
-    } else if (typeof value === "object" && value !== null) {
-      sections.push(`\n### ${formatKeyAsTitle(key)}`);
-      sections.push(formatValue(value, 0));
-    } else {
-      sections.push(`\n**${formatKeyAsTitle(key)}:** ${value}`);
-    }
+    sections.push(...formatDataEntry(key, data[key]));
   }
 
-  // Handle pagination
   if (data["paging"] && typeof data["paging"] === "object") {
-    const paging = data["paging"] as Record<string, unknown>;
-    const hasMore = !!paging["next"];
     sections.push(
-      `\n---\n*${hasMore ? "More results available" : "No more results"}*`,
+      formatPagingFooter(data["paging"] as Record<string, unknown>),
     );
   }
 
@@ -411,74 +425,72 @@ export function createSuccessResponse(
   };
 }
 
+interface ErrorInfo {
+  message: string;
+  code?: string | number;
+  details?: Record<string, unknown>;
+}
+
+const ERROR_MESSAGE_KEYS = ["message", "error", "error_message"] as const;
+const ERROR_CODE_KEYS = ["code", "error_code"] as const;
+const ERROR_METADATA_KEYS = new Set<string>([
+  ...ERROR_MESSAGE_KEYS,
+  ...ERROR_CODE_KEYS,
+]);
+
+/** Extracts the first string-typed value from known message fields. */
+function extractMessage(obj: Record<string, unknown>): string | null {
+  for (const key of ERROR_MESSAGE_KEYS) {
+    if (typeof obj[key] === "string") return obj[key];
+  }
+  return null;
+}
+
+/** Extracts the first string/number code from known code fields. */
+function extractCode(
+  obj: Record<string, unknown>,
+): string | number | undefined {
+  for (const key of ERROR_CODE_KEYS) {
+    const val = obj[key];
+    if (typeof val === "string" || typeof val === "number") return val;
+  }
+  return undefined;
+}
+
+/** Collects object entries that aren't message/code metadata. */
+function collectDetails(
+  obj: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  const details: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (!ERROR_METADATA_KEYS.has(key) && value !== undefined) {
+      details[key] = value;
+    }
+  }
+  return Object.keys(details).length > 0 ? details : undefined;
+}
+
 /**
  * Extracts error information from various error types.
  * Preserves context from API error objects with message/code/error fields.
  */
-function extractErrorInfo(error: unknown): {
-  message: string;
-  code?: string | number;
-  details?: Record<string, unknown>;
-} {
-  if (error instanceof Error) {
-    return { message: error.message };
-  }
+function extractErrorInfo(error: unknown): ErrorInfo {
+  if (error instanceof Error) return { message: error.message };
+  if (typeof error === "string") return { message: error };
 
-  if (typeof error === "string") {
-    return { message: error };
-  }
-
-  // Handle plain objects with common error fields
   if (error && typeof error === "object") {
     const obj = error as Record<string, unknown>;
-
-    // Extract message from common fields
-    const message =
-      typeof obj["message"] === "string"
-        ? obj["message"]
-        : typeof obj["error"] === "string"
-          ? obj["error"]
-          : typeof obj["error_message"] === "string"
-            ? obj["error_message"]
-            : null;
-
-    // Extract error code
-    const code =
-      typeof obj["code"] === "number" || typeof obj["code"] === "string"
-        ? obj["code"]
-        : typeof obj["error_code"] === "number" ||
-            typeof obj["error_code"] === "string"
-          ? obj["error_code"]
-          : undefined;
+    const message = extractMessage(obj);
 
     if (message) {
-      // Collect additional context fields
-      const details: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(obj)) {
-        if (
-          !["message", "error", "error_message", "code", "error_code"].includes(
-            key,
-          ) &&
-          value !== undefined
-        ) {
-          details[key] = value;
-        }
-      }
-      const result: {
-        message: string;
-        code?: string | number;
-        details?: Record<string, unknown>;
-      } = { message };
-      if (code !== undefined) {
-        result.code = code;
-      }
-      if (Object.keys(details).length > 0) {
-        result.details = details;
-      }
+      const result: ErrorInfo = { message };
+      const code = extractCode(obj);
+      if (code !== undefined) result.code = code;
+      const details = collectDetails(obj);
+      if (details) result.details = details;
       return result;
     }
 
-    // Fallback: stringify the entire object
     try {
       return { message: JSON.stringify(obj) };
     } catch {
@@ -487,6 +499,53 @@ function extractErrorInfo(error: unknown): {
   }
 
   return { message: String(error) };
+}
+
+/** Builds a structured details object from a MetaApiError. */
+function buildMetaErrorDetails(error: MetaApiError): Record<string, unknown> {
+  const details: Record<string, unknown> = {
+    message: error.userMessage || error.message,
+    code: error.code,
+    type: error.type,
+    is_transient: error.isTransient,
+    is_retryable: error.isRetryable,
+  };
+  if (error.userTitle) details["title"] = error.userTitle;
+  if (error.subcode) details["subcode"] = error.subcode;
+  if (error.blameField) details["blame_field"] = error.blameField;
+  if (error.fbtrace_id) details["fbtrace_id"] = error.fbtrace_id;
+  return details;
+}
+
+/** Renders a MetaApiError as a markdown string. */
+function metaErrorToMarkdown(
+  error: MetaApiError,
+  details: Record<string, unknown>,
+): string {
+  const heading = details["title"]
+    ? `✗ **${details["title"]}**`
+    : "✗ **Error**";
+  let text = `${heading}\n\n${details["message"]}\n\n**Code:** ${error.code}`;
+  if (error.blameField) text += `\n**Field:** ${error.blameField}`;
+  return text;
+}
+
+/** Renders generic ErrorInfo as a markdown string. */
+function errorInfoToMarkdown(info: ErrorInfo): string {
+  let text = `✗ **Error**\n\n${info.message}`;
+  if (info.code !== undefined) text += `\n\n**Code:** ${info.code}`;
+  if (info.details) {
+    text += `\n\n**Details:**\n${JSON.stringify(info.details, null, 2)}`;
+  }
+  return text;
+}
+
+/** Wraps text content into an MCP error response. */
+function errorResponse(text: string): ToolResponse {
+  return {
+    content: [{ type: "text" as const, text }],
+    isError: true,
+  };
 }
 
 /**
@@ -508,95 +567,28 @@ export function createErrorResponse(
   error: unknown,
   format: ResponseFormat = "json",
 ): ToolResponse {
-  // Handle Meta API errors with full details
   if (error instanceof MetaApiError) {
-    const errorDetails: Record<string, unknown> = {
-      message: error.userMessage || error.message,
-      code: error.code,
-      type: error.type,
-    };
-
-    // Include optional fields only if present
-    if (error.userTitle) {
-      errorDetails["title"] = error.userTitle;
-    }
-    if (error.subcode) {
-      errorDetails["subcode"] = error.subcode;
-    }
-    if (error.blameField) {
-      errorDetails["blame_field"] = error.blameField;
-    }
-    if (error.fbtrace_id) {
-      errorDetails["fbtrace_id"] = error.fbtrace_id;
-    }
-    errorDetails["is_transient"] = error.isTransient;
-    errorDetails["is_retryable"] = error.isRetryable;
-
+    const details = buildMetaErrorDetails(error);
     if (format === "markdown") {
-      let text = `✗ **Error**\n\n${errorDetails["message"]}`;
-      if (errorDetails["title"]) {
-        text = `✗ **${errorDetails["title"]}**\n\n${errorDetails["message"]}`;
-      }
-      text += `\n\n**Code:** ${error.code}`;
-      if (error.blameField) {
-        text += `\n**Field:** ${error.blameField}`;
-      }
-      return {
-        content: [{ type: "text" as const, text }],
-        isError: true,
-      };
+      return errorResponse(metaErrorToMarkdown(error, details));
     }
-
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify(
-            { success: false, error: errorDetails },
-            null,
-            2,
-          ),
-        },
-      ],
-      isError: true,
-    };
+    return errorResponse(
+      JSON.stringify({ success: false, error: details }, null, 2),
+    );
   }
 
-  // Fallback for non-Meta errors using extractErrorInfo
   const errorInfo = extractErrorInfo(error);
 
   if (format === "markdown") {
-    let text = `✗ **Error**\n\n${errorInfo.message}`;
-    if (errorInfo.code !== undefined) {
-      text += `\n\n**Code:** ${errorInfo.code}`;
-    }
-    if (errorInfo.details) {
-      text += `\n\n**Details:**\n${JSON.stringify(errorInfo.details, null, 2)}`;
-    }
-    return {
-      content: [{ type: "text" as const, text }],
-      isError: true,
-    };
+    return errorResponse(errorInfoToMarkdown(errorInfo));
   }
 
   const responseData: Record<string, unknown> = {
     success: false,
     error: errorInfo.message,
   };
-  if (errorInfo.code !== undefined) {
-    responseData["error_code"] = errorInfo.code;
-  }
-  if (errorInfo.details) {
-    responseData["error_details"] = errorInfo.details;
-  }
+  if (errorInfo.code !== undefined) responseData["error_code"] = errorInfo.code;
+  if (errorInfo.details) responseData["error_details"] = errorInfo.details;
 
-  return {
-    content: [
-      {
-        type: "text" as const,
-        text: JSON.stringify(responseData, null, 2),
-      },
-    ],
-    isError: true,
-  };
+  return errorResponse(JSON.stringify(responseData, null, 2));
 }

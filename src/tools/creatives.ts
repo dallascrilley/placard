@@ -6,7 +6,6 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { createMetaClient } from "../api/meta-client.js";
 import {
   CREATE_ANNOTATIONS,
   READ_ONLY_ANNOTATIONS,
@@ -20,8 +19,8 @@ import {
   userIdSchema,
 } from "../schemas/index.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
+import { withToolHandler } from "../utils/tool-handler.js";
 import {
-  createErrorResponse,
   createSuccessResponse,
   enhancePagination,
 } from "../utils/tool-responses.js";
@@ -91,20 +90,12 @@ Errors:
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({
-      account_id,
-      campaign_id,
-      limit,
-      after,
-      before,
-      fields,
-      user_id,
-      response_format,
-    }) => {
-      const format = response_format ?? "json";
-      try {
+    withToolHandler(
+      async (
+        { account_id, campaign_id, limit, after, before, fields },
+        { client, format },
+      ) => {
         const normalizedId = normalizeAccountId(account_id);
-        const client = createMetaClient({ userId: user_id ?? "default" });
         const response = await client.getAdCreatives(normalizedId, {
           campaign_id,
           limit: limit ?? 25,
@@ -124,10 +115,8 @@ Errors:
           },
           format,
         );
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      },
+    ),
   );
 
   /**
@@ -175,17 +164,9 @@ Errors:
       response_format: responseFormatSchema,
     },
     CREATE_ANNOTATIONS,
-    async ({
-      account_id,
-      name,
-      object_story_spec,
-      user_id,
-      response_format,
-    }) => {
-      const format = response_format ?? "json";
-      try {
+    withToolHandler(
+      async ({ account_id, name, object_story_spec }, { client, format }) => {
         const normalizedId = normalizeAccountId(account_id);
-        const client = createMetaClient({ userId: user_id ?? "default" });
 
         const result = await client.createAdCreative(normalizedId, {
           name,
@@ -199,9 +180,7 @@ Errors:
           },
           format,
         );
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      },
+    ),
   );
 }

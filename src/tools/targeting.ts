@@ -6,7 +6,6 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { createMetaClient } from "../api/meta-client.js";
 import { READ_ONLY_ANNOTATIONS, TARGETING_TYPES } from "../constants/index.js";
 import {
   accountIdSchema,
@@ -16,10 +15,8 @@ import {
   userIdSchema,
 } from "../schemas/index.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
-import {
-  createErrorResponse,
-  createSuccessResponse,
-} from "../utils/tool-responses.js";
+import { withToolHandler } from "../utils/tool-handler.js";
+import { createSuccessResponse } from "../utils/tool-responses.js";
 
 export function registerTargetingTools(server: McpServer): void {
   /**
@@ -74,24 +71,18 @@ Errors:
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({ type, query, limit, user_id, response_format }) => {
-      const format = response_format ?? "json";
-      try {
-        const client = createMetaClient({ userId: user_id ?? "default" });
-        const response = await client.searchTargeting(type, query, limit ?? 25);
+    withToolHandler(async ({ type, query, limit }, { client, format }) => {
+      const response = await client.searchTargeting(type, query, limit ?? 25);
 
-        return createSuccessResponse(
-          {
-            targeting_type: type,
-            query,
-            results: response.data,
-          },
-          format,
-        );
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      return createSuccessResponse(
+        {
+          targeting_type: type,
+          query,
+          results: response.data,
+        },
+        format,
+      );
+    }),
   );
 
   /**
@@ -145,22 +136,16 @@ Errors:
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({ account_id, targeting, user_id, response_format }) => {
-      const format = response_format ?? "json";
-      try {
-        const normalizedId = normalizeAccountId(account_id);
-        const client = createMetaClient({ userId: user_id ?? "default" });
-        const response = await client.getReachEstimate(normalizedId, targeting);
+    withToolHandler(async ({ account_id, targeting }, { client, format }) => {
+      const normalizedId = normalizeAccountId(account_id);
+      const response = await client.getReachEstimate(normalizedId, targeting);
 
-        return createSuccessResponse(
-          {
-            reach_estimate: response.data,
-          },
-          format,
-        );
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      return createSuccessResponse(
+        {
+          reach_estimate: response.data,
+        },
+        format,
+      );
+    }),
   );
 }

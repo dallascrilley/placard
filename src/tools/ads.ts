@@ -6,7 +6,6 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { createMetaClient } from "../api/meta-client.js";
 import {
   AD_STATUSES,
   CREATE_ANNOTATIONS,
@@ -22,6 +21,7 @@ import {
   userIdSchema,
 } from "../schemas/index.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
+import { withToolHandler } from "../utils/tool-handler.js";
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -93,21 +93,12 @@ Errors:
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({
-      account_id,
-      limit,
-      after,
-      before,
-      fields,
-      adset_id,
-      campaign_id,
-      user_id,
-      response_format,
-    }) => {
-      const format = response_format ?? "json";
-      try {
+    withToolHandler(
+      async (
+        { account_id, limit, after, before, fields, adset_id, campaign_id },
+        { client, format },
+      ) => {
         const normalizedId = normalizeAccountId(account_id);
-        const client = createMetaClient({ userId: user_id ?? "default" });
         const response = await client.getAds(normalizedId, {
           limit: limit ?? 25,
           after,
@@ -128,10 +119,8 @@ Errors:
           },
           format,
         );
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      },
+    ),
   );
 
   /**
@@ -181,17 +170,11 @@ Errors:
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({ ad_id, fields, user_id, response_format }) => {
-      const format = response_format ?? "json";
-      try {
-        const client = createMetaClient({ userId: user_id ?? "default" });
-        const ad = await client.getAdDetails(ad_id, fields);
+    withToolHandler(async ({ ad_id, fields }, { client, format }) => {
+      const ad = await client.getAdDetails(ad_id, fields);
 
-        return createSuccessResponse({ ad }, format);
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      return createSuccessResponse({ ad }, format);
+    }),
   );
 
   /**
@@ -250,18 +233,11 @@ Errors:
       response_format: responseFormatSchema,
     },
     CREATE_ANNOTATIONS,
-    async ({
-      account_id,
-      name,
-      adset_id,
-      creative_id,
-      creative,
-      status,
-      user_id,
-      response_format,
-    }) => {
-      const format = response_format ?? "json";
-      try {
+    withToolHandler(
+      async (
+        { account_id, name, adset_id, creative_id, creative, status },
+        { client, format },
+      ) => {
         const normalizedId = normalizeAccountId(account_id);
 
         // Build creative object - enforce mutual exclusivity
@@ -283,8 +259,6 @@ Errors:
           );
         }
 
-        const client = createMetaClient({ userId: user_id ?? "default" });
-
         const result = await client.createAd(normalizedId, {
           name,
           adset_id,
@@ -299,10 +273,8 @@ Errors:
           },
           format,
         );
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      },
+    ),
   );
 
   /**
@@ -344,25 +316,15 @@ Errors:
       response_format: responseFormatSchema,
     },
     UPDATE_ANNOTATIONS,
-    async ({ ad_id, name, status, user_id, response_format }) => {
-      const format = response_format ?? "json";
-      try {
-        const client = createMetaClient({ userId: user_id ?? "default" });
+    withToolHandler(async ({ ad_id, name, status }, { client, format }) => {
+      await client.updateAd(ad_id, { name, status });
 
-        const result = await client.updateAd(ad_id, {
-          name,
-          status,
-        });
-
-        return createSuccessResponse(
-          {
-            message: `Ad ${ad_id} updated successfully`,
-          },
-          format,
-        );
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      return createSuccessResponse(
+        {
+          message: `Ad ${ad_id} updated successfully`,
+        },
+        format,
+      );
+    }),
   );
 }

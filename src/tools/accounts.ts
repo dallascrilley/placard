@@ -5,7 +5,6 @@
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { createMetaClient } from "../api/meta-client.js";
 import { READ_ONLY_ANNOTATIONS } from "../constants/index.js";
 import {
   accountIdSchema,
@@ -15,8 +14,8 @@ import {
   userIdSchema,
 } from "../schemas/index.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
+import { withToolHandler } from "../utils/tool-handler.js";
 import {
-  createErrorResponse,
   createSuccessResponse,
   enhancePagination,
 } from "../utils/tool-responses.js";
@@ -75,26 +74,20 @@ Errors:
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({ limit, fields, user_id, response_format }) => {
-      const format = response_format ?? "json";
-      try {
-        const client = createMetaClient({ userId: user_id ?? "default" });
-        const response = await client.getAdAccounts(limit ?? 25, fields);
+    withToolHandler(async ({ limit, fields }, { client, format }) => {
+      const response = await client.getAdAccounts(limit ?? 25, fields);
 
-        return createSuccessResponse(
-          {
-            accounts: response.data,
-            paging: enhancePagination(response.paging, response.data, {
-              totalCount: response.summary?.total_count,
-              limit: limit ?? 25,
-            }),
-          },
-          format,
-        );
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      return createSuccessResponse(
+        {
+          accounts: response.data,
+          paging: enhancePagination(response.paging, response.data, {
+            totalCount: response.summary?.total_count,
+            limit: limit ?? 25,
+          }),
+        },
+        format,
+      );
+    }),
   );
 
   /**
@@ -146,17 +139,11 @@ Errors:
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({ account_id, fields, user_id, response_format }) => {
-      const format = response_format ?? "json";
-      try {
-        const normalizedId = normalizeAccountId(account_id);
-        const client = createMetaClient({ userId: user_id ?? "default" });
-        const account = await client.getAccountInfo(normalizedId, fields);
+    withToolHandler(async ({ account_id, fields }, { client, format }) => {
+      const normalizedId = normalizeAccountId(account_id);
+      const account = await client.getAccountInfo(normalizedId, fields);
 
-        return createSuccessResponse({ account }, format);
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      return createSuccessResponse({ account }, format);
+    }),
   );
 }

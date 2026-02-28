@@ -31,6 +31,7 @@ import {
   CREATE_ANNOTATIONS,
   DESTINATION_TYPES,
   OPTIMIZATION_GOALS,
+  PACING_TYPES,
   READ_ONLY_ANNOTATIONS,
   UPDATE_ANNOTATIONS,
 } from "../constants/index.js";
@@ -232,6 +233,7 @@ Args:
   - start_time (string, optional): Start time in ISO 8601 format (e.g., "2025-01-01T00:00:00+0000")
   - promoted_object (object, optional): Promoted object for conversion/event/app ad sets. Required for OFFSITE_CONVERSIONS. Fields: pixel_id, custom_event_type (PURCHASE, LEAD, COMPLETE_REGISTRATION, etc.), event_id, application_id, object_store_url, offer_id, page_id
   - destination_type (string, optional): Where users go after click. Must match objective/optimization_goal. Options: PHONE_CALL, MESSENGER, WHATSAPP, FACEBOOK, WEBSITE, etc.
+  - pacing_type (string, optional): Delivery speed. standard (default), no_pacing (accelerated), day_parting (requires adset_schedule + lifetime_budget)
   - end_time (string, optional): End time in ISO 8601 format
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
@@ -295,6 +297,12 @@ Errors:
         .describe(
           "Enable Advantage+ dynamic creative. Set at creation only — cannot change later.",
         ),
+      pacing_type: z
+        .enum(PACING_TYPES)
+        .optional()
+        .describe(
+          "Delivery speed: standard (default), no_pacing (accelerated), day_parting (requires adset_schedule + lifetime_budget)",
+        ),
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
@@ -318,6 +326,7 @@ Errors:
           promoted_object,
           destination_type,
           is_dynamic_creative,
+          pacing_type,
         },
         { client, format },
       ) => {
@@ -351,6 +360,7 @@ Errors:
           promoted_object,
           destination_type,
           is_dynamic_creative,
+          pacing_type,
         });
 
         return createSuccessResponse(
@@ -382,6 +392,7 @@ Args:
   - targeting (object, optional): New targeting specification object
   - bid_amount (number, optional): New bid amount in cents
   - bid_strategy (string, optional): New bid strategy. Options: LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, TARGET_COST
+  - pacing_type (string, optional): New delivery speed. standard, no_pacing, day_parting
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
 Returns:
@@ -425,6 +436,10 @@ Errors:
         .enum(BID_STRATEGIES)
         .optional()
         .describe("New bid strategy"),
+      pacing_type: z
+        .enum(PACING_TYPES)
+        .optional()
+        .describe("New pacing: standard, no_pacing, day_parting"),
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
@@ -440,6 +455,7 @@ Errors:
           targeting,
           bid_amount,
           bid_strategy,
+          pacing_type,
         },
         { client, format },
       ) => {
@@ -451,6 +467,7 @@ Errors:
           targeting,
           bid_amount,
           bid_strategy,
+          pacing_type,
         });
 
         return createSuccessResponse(

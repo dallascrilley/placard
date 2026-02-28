@@ -394,6 +394,7 @@ export class MetaClient {
       promoted_object?: object | undefined;
       destination_type?: string | undefined;
       is_dynamic_creative?: boolean | undefined;
+      pacing_type?: string | undefined;
     },
   ): Promise<{ id: string }> {
     const body: Record<string, unknown> = {
@@ -421,6 +422,8 @@ export class MetaClient {
       body["destination_type"] = data.destination_type;
     if (data.is_dynamic_creative !== undefined)
       body["is_dynamic_creative"] = data.is_dynamic_creative;
+    if (data.pacing_type !== undefined)
+      body["pacing_type"] = JSON.stringify([data.pacing_type]);
 
     return this.request<{ id: string }>(`/${accountId}/adsets`, {
       method: "POST",
@@ -441,6 +444,7 @@ export class MetaClient {
       targeting?: object | undefined;
       bid_amount?: number | undefined;
       bid_strategy?: string | undefined;
+      pacing_type?: string | undefined;
     },
   ): Promise<{ success: boolean }> {
     const body: Record<string, unknown> = {};
@@ -455,6 +459,8 @@ export class MetaClient {
     if (data.bid_amount !== undefined) body["bid_amount"] = data.bid_amount;
     if (data.bid_strategy !== undefined)
       body["bid_strategy"] = data.bid_strategy;
+    if (data.pacing_type !== undefined)
+      body["pacing_type"] = JSON.stringify([data.pacing_type]);
 
     return this.request<{ success: boolean }>(`/${adsetId}`, {
       method: "POST",

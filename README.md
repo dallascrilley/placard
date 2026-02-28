@@ -92,6 +92,8 @@ Copy the `code` value and complete authentication:
 }
 ```
 
+If your callback page shows `Invalid or expired state parameter`, use the same `code` anyway with `meta_complete_auth`. The code can still be valid even when callback-state tracking was lost (for example, after a restart).
+
 #### Step 3: Verify
 
 ```json
@@ -129,6 +131,8 @@ Then use `meta_complete_auth` with the code.
 #### Option 2: Automatic (Requires Server)
 
 If you have a server running at the callback URL, it can automatically exchange the code. See the HTTP transport section.
+
+Important: if your callback server and MCP server do not share the same OAuth state store, callback-side state validation can fail. In that case, recover by extracting `code` from the callback URL and calling `meta_complete_auth`.
 
 ### Facebook App Configuration
 

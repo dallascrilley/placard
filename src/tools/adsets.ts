@@ -6,7 +6,6 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { createMetaClient } from "../api/meta-client.js";
 import {
   ADSET_STATUSES,
   BID_STRATEGIES,
@@ -29,8 +28,8 @@ import {
   userIdSchema,
 } from "../schemas/index.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
+import { withToolHandler } from "../utils/tool-handler.js";
 import {
-  createErrorResponse,
   createSuccessResponse,
   enhancePagination,
 } from "../utils/tool-responses.js";
@@ -99,20 +98,12 @@ Errors:
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({
-      account_id,
-      limit,
-      after,
-      before,
-      fields,
-      campaign_id,
-      user_id,
-      response_format,
-    }) => {
-      const format = response_format ?? "json";
-      try {
+    withToolHandler(
+      async (
+        { account_id, limit, after, before, fields, campaign_id },
+        { client, format },
+      ) => {
         const normalizedId = normalizeAccountId(account_id);
-        const client = createMetaClient({ userId: user_id ?? "default" });
         const response = await client.getAdSets(normalizedId, {
           limit: limit ?? 25,
           after,
@@ -132,10 +123,8 @@ Errors:
           },
           format,
         );
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      },
+    ),
   );
 
   /**
@@ -191,17 +180,11 @@ Errors:
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({ adset_id, fields, user_id, response_format }) => {
-      const format = response_format ?? "json";
-      try {
-        const client = createMetaClient({ userId: user_id ?? "default" });
-        const adset = await client.getAdSetDetails(adset_id, fields);
+    withToolHandler(async ({ adset_id, fields }, { client, format }) => {
+      const adset = await client.getAdSetDetails(adset_id, fields);
 
-        return createSuccessResponse({ adset }, format);
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      return createSuccessResponse({ adset }, format);
+    }),
   );
 
   /**
@@ -279,27 +262,26 @@ Errors:
       response_format: responseFormatSchema,
     },
     CREATE_ANNOTATIONS,
-    async ({
-      account_id,
-      name,
-      campaign_id,
-      optimization_goal,
-      billing_event,
-      targeting,
-      status,
-      daily_budget,
-      lifetime_budget,
-      bid_amount,
-      bid_strategy,
-      start_time,
-      end_time,
-      user_id,
-      response_format,
-    }) => {
-      const format = response_format ?? "json";
-      try {
+    withToolHandler(
+      async (
+        {
+          account_id,
+          name,
+          campaign_id,
+          optimization_goal,
+          billing_event,
+          targeting,
+          status,
+          daily_budget,
+          lifetime_budget,
+          bid_amount,
+          bid_strategy,
+          start_time,
+          end_time,
+        },
+        { client, format },
+      ) => {
         const normalizedId = normalizeAccountId(account_id);
-        const client = createMetaClient({ userId: user_id ?? "default" });
 
         const result = await client.createAdSet(normalizedId, {
           name,
@@ -323,10 +305,8 @@ Errors:
           },
           format,
         );
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      },
+    ),
   );
 
   /**
@@ -394,23 +374,21 @@ Errors:
       response_format: responseFormatSchema,
     },
     UPDATE_ANNOTATIONS,
-    async ({
-      adset_id,
-      name,
-      status,
-      daily_budget,
-      lifetime_budget,
-      targeting,
-      bid_amount,
-      bid_strategy,
-      user_id,
-      response_format,
-    }) => {
-      const format = response_format ?? "json";
-      try {
-        const client = createMetaClient({ userId: user_id ?? "default" });
-
-        const result = await client.updateAdSet(adset_id, {
+    withToolHandler(
+      async (
+        {
+          adset_id,
+          name,
+          status,
+          daily_budget,
+          lifetime_budget,
+          targeting,
+          bid_amount,
+          bid_strategy,
+        },
+        { client, format },
+      ) => {
+        await client.updateAdSet(adset_id, {
           name,
           status,
           daily_budget,
@@ -426,9 +404,7 @@ Errors:
           },
           format,
         );
-      } catch (error) {
-        return createErrorResponse(error, format);
-      }
-    },
+      },
+    ),
   );
 }

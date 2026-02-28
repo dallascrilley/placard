@@ -444,6 +444,35 @@ describe("MetaClient", () => {
       const body = JSON.parse(options.body as string);
       expect(body.daily_budget).toBe(5000);
     });
+
+    it("should pass bid_strategy when provided", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { id: "123" } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.createCampaign("act_123", {
+        name: "Test",
+        objective: "OUTCOME_SALES",
+        bid_strategy: "LOWEST_COST_WITHOUT_CAP",
+      });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.bid_strategy).toBe("LOWEST_COST_WITHOUT_CAP");
+    });
+
+    it("should not include bid_strategy when not provided", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { id: "123" } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.createCampaign("act_123", {
+        name: "Test",
+        objective: "OUTCOME_SALES",
+      });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.bid_strategy).toBeUndefined();
+    });
   });
 
   describe("updateCampaign", () => {

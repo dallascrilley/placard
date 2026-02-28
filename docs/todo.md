@@ -17,3 +17,19 @@
 - [ ] Add integration test for auth start in MCP + callback completion across restarts
 - [ ] Update deployment docs and runbook with finalized auth flow
 - [ ] Track execution in GitHub issue: https://github.com/DallasCrilleyMarTech/meta-ads-mcp/issues/6
+
+## Open Follow-up: callback service repo boundary
+- [x] Create local endpoint app repo snapshot and add submodule at `endpoint-app/`
+- [ ] Replace local-only submodule URL with shared remote repository URL
+- [ ] Decide whether callback service moves to dedicated repo + submodule
+- [ ] Write ADR comparing keep-in-repo vs submodule vs separate repo-only
+- [ ] Implement selected option with CI/deploy updates
+- [ ] Track execution in GitHub issue: https://github.com/DallasCrilleyMarTech/meta-ads-mcp/issues/13
+
+## Deployment Verification (2026-02-28)
+- [x] Verified ownership on `157.180.85.128` (`project=meta-oauth`, `working_dir=/opt/meta-oauth`)
+- [x] Created timestamped backups for `/opt/meta-oauth/server.ts` and `/opt/meta-oauth/docker-compose.yml`
+- [x] Deployed updated callback service code and restarted `meta-oauth-callback`
+- [x] Validated `/health` = `200`, `/auth/start` returns `auth_url` + `state`
+- [x] Validated `/callback` without params = `400 Missing code or state parameter`
+- [x] Checked container logs for unexpected errors

@@ -1,0 +1,3 @@
+[submodule "endpoint-app"]
+	path = endpoint-app
+	url = /Users/dallascrilley/Code/meta-oauth-endpoint

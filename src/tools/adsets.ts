@@ -124,7 +124,11 @@ Errors:
         return createSuccessResponse(
           {
             adsets: response.data,
-            paging: enhancePagination(response.paging, response.data),
+            paging: enhancePagination(response.paging, response.data, {
+              totalCount: response.summary?.total_count,
+              limit: limit ?? 25,
+              cursorProvided: !!after || !!before,
+            }),
           },
           format,
         );

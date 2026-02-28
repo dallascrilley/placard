@@ -124,7 +124,126 @@ Errors:
         return createSuccessResponse(
           {
             campaigns: response.data,
-            paging: enhancePagination(response.paging, response.data),
+            paging: enhancePagination(response.paging, response.data, {
+              totalCount: response.summary?.total_count,
+              limit: limit ?? 25,
+              cursorProvided: !!after || !!before,
+            }),
+          },
+          format,
+        );
+      } catch (error) {
+        return createErrorResponse(error, format);
+      }
+    },
+  );
+
+  /**
+   * Get deduplicated ad copy text for a campaign
+   */
+  server.tool(
+    "meta_get_campaign_copy",
+    `Get deduplicated ad copy text for a campaign.
+
+Retrieves ads under a campaign, extracts creative body text, and returns unique copy strings in one call. This is optimized for agent workflows that need "just the ad copy" without traversing ads and creatives manually.
+
+Args:
+  - campaign_id (string, required): Campaign ID
+  - limit (number, optional): Ads to scan per page, 1-100 (default: 100)
+  - max_pages (number, optional): Maximum pages to scan, 1-20 (default: 10)
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')
+
+Returns:
+  {
+    "success": true,
+    "campaign_id": "123456789",
+    "copy_texts": [
+      "Body copy variant A",
+      "Body copy variant B"
+    ],
+    "total_unique_copy": 2,
+    "total_ads_scanned": 37,
+    "paging": {
+      "scanned_pages": 1,
+      "has_more": false
+    }
+  }
+
+Examples:
+  - Get campaign copy: { "campaign_id": "123456789" }
+  - Scan more pages: { "campaign_id": "123456789", "max_pages": 20 }
+
+Errors:
+  - 190: Token expired - use meta_get_login_link to re-authenticate
+  - 4/17/32: Rate limited - wait and retry
+  - 100: Invalid campaign ID format
+  - 10/200/294: Permission denied - user lacks access to this campaign`,
+    {
+      campaign_id: z.string().describe("Campaign ID"),
+      limit: createLimitSchema("ads per page"),
+      max_pages: z
+        .number()
+        .int()
+        .min(1)
+        .max(20)
+        .optional()
+        .describe("Maximum pages to scan (default: 10)"),
+      user_id: userIdSchema,
+      response_format: responseFormatSchema,
+    },
+    READ_ONLY_ANNOTATIONS,
+    async ({ campaign_id, limit, max_pages, user_id, response_format }) => {
+      const format = response_format ?? "json";
+      try {
+        const client = createMetaClient({ userId: user_id ?? "default" });
+        const pageLimit = limit ?? 100;
+        const pageCap = max_pages ?? 10;
+        const uniqueCopy = new Set<string>();
+        let adsScanned = 0;
+        let pagesScanned = 0;
+        let afterCursor: string | undefined;
+        let hasMore = false;
+
+        while (pagesScanned < pageCap) {
+          const response = await client.getCampaignAds(campaign_id, {
+            limit: pageLimit,
+            after: afterCursor,
+          });
+
+          pagesScanned += 1;
+          adsScanned += response.data.length;
+
+          for (const ad of response.data) {
+            const body = ad.creative?.body?.trim();
+            if (body) {
+              uniqueCopy.add(body);
+            }
+          }
+
+          const nextCursor = response.paging?.cursors?.after;
+          hasMore = !!response.paging?.next && !!nextCursor;
+          if (!hasMore || !nextCursor) {
+            afterCursor = undefined;
+            break;
+          }
+          afterCursor = nextCursor;
+        }
+
+        const paging: Record<string, unknown> = {
+          scanned_pages: pagesScanned,
+          has_more: hasMore,
+        };
+        if (afterCursor) {
+          paging["next_after"] = afterCursor;
+        }
+
+        return createSuccessResponse(
+          {
+            campaign_id,
+            copy_texts: Array.from(uniqueCopy),
+            total_unique_copy: uniqueCopy.size,
+            total_ads_scanned: adsScanned,
+            paging,
           },
           format,
         );

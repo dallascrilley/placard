@@ -12,6 +12,7 @@ import {
   fieldsSchema,
   lifetimeBudgetSchema,
   optionalTargetingSchema,
+  responseFormatSchema,
   targetingSchema,
   timeRangeSchema,
   userIdSchema,
@@ -184,6 +185,18 @@ describe("Common Schemas", () => {
     it("rejects more than 50 fields", () => {
       const tooMany = Array.from({ length: 51 }, (_, i) => `field_${i}`);
       expect(fieldsSchema.safeParse(tooMany).success).toBe(false);
+    });
+  });
+
+  describe("responseFormatSchema", () => {
+    it("accepts supported response formats", () => {
+      expect(responseFormatSchema.safeParse("json").success).toBe(true);
+      expect(responseFormatSchema.safeParse("markdown").success).toBe(true);
+      expect(responseFormatSchema.safeParse("compact").success).toBe(true);
+    });
+
+    it("rejects unsupported response formats", () => {
+      expect(responseFormatSchema.safeParse("yaml").success).toBe(false);
     });
   });
 

@@ -126,6 +126,17 @@ export class MetaClient {
     );
   }
 
+  /**
+   * Convert optional field selections into Meta API `fields` param.
+   * Empty arrays should fall back to defaults rather than sending `fields=`.
+   */
+  private resolveFields(
+    fields: string[] | undefined,
+    defaultFields: string,
+  ): string {
+    return fields && fields.length > 0 ? fields.join(",") : defaultFields;
+  }
+
   // ============================================
   // Ad Account Methods
   // ============================================
@@ -133,11 +144,16 @@ export class MetaClient {
   /**
    * Get ad accounts accessible by the user
    */
-  async getAdAccounts(limit = 25): Promise<ApiResponse<AdAccount>> {
+  async getAdAccounts(
+    limit = 25,
+    fields?: string[] | undefined,
+  ): Promise<ApiResponse<AdAccount>> {
     return this.request<ApiResponse<AdAccount>>("/me/adaccounts", {
       params: {
-        fields:
+        fields: this.resolveFields(
+          fields,
           "id,account_id,name,currency,timezone_name,account_status,amount_spent,balance,business",
+        ),
         limit,
       },
     });
@@ -146,11 +162,16 @@ export class MetaClient {
   /**
    * Get ad account details
    */
-  async getAccountInfo(accountId: string): Promise<AdAccount> {
+  async getAccountInfo(
+    accountId: string,
+    fields?: string[] | undefined,
+  ): Promise<AdAccount> {
     return this.request<AdAccount>(`/${accountId}`, {
       params: {
-        fields:
+        fields: this.resolveFields(
+          fields,
           "id,account_id,name,currency,timezone_name,account_status,amount_spent,balance,business,funding_source_details",
+        ),
       },
     });
   }
@@ -164,12 +185,22 @@ export class MetaClient {
    */
   async getCampaigns(
     accountId: string,
-    options: { limit?: number | undefined; status?: string | undefined } = {},
+    options: {
+      limit?: number | undefined;
+      status?: string | undefined;
+      after?: string | undefined;
+      before?: string | undefined;
+      fields?: string[] | undefined;
+    } = {},
   ): Promise<ApiResponse<Campaign>> {
     const params: Record<string, string | number | undefined> = {
-      fields:
+      fields: this.resolveFields(
+        options.fields,
         "id,name,objective,status,effective_status,created_time,updated_time,start_time,stop_time,daily_budget,lifetime_budget,budget_remaining,special_ad_categories",
+      ),
       limit: options.limit ?? 25,
+      after: options.after,
+      before: options.before,
     };
 
     if (options.status) {
@@ -186,11 +217,16 @@ export class MetaClient {
   /**
    * Get campaign details
    */
-  async getCampaignDetails(campaignId: string): Promise<Campaign> {
+  async getCampaignDetails(
+    campaignId: string,
+    fields?: string[] | undefined,
+  ): Promise<Campaign> {
     return this.request<Campaign>(`/${campaignId}`, {
       params: {
-        fields:
+        fields: this.resolveFields(
+          fields,
           "id,name,objective,status,effective_status,created_time,updated_time,start_time,stop_time,daily_budget,lifetime_budget,budget_remaining,special_ad_categories,special_ad_category,special_ad_category_country",
+        ),
       },
     });
   }
@@ -268,12 +304,19 @@ export class MetaClient {
     options: {
       limit?: number | undefined;
       campaign_id?: string | undefined;
+      after?: string | undefined;
+      before?: string | undefined;
+      fields?: string[] | undefined;
     } = {},
   ): Promise<ApiResponse<AdSet>> {
     const params: Record<string, string | number | undefined> = {
-      fields:
+      fields: this.resolveFields(
+        options.fields,
         "id,name,campaign_id,status,effective_status,optimization_goal,billing_event,bid_strategy,bid_amount,daily_budget,lifetime_budget,budget_remaining,targeting,start_time,end_time,created_time,updated_time",
+      ),
       limit: options.limit ?? 25,
+      after: options.after,
+      before: options.before,
     };
 
     if (options.campaign_id) {
@@ -290,11 +333,16 @@ export class MetaClient {
   /**
    * Get ad set details
    */
-  async getAdSetDetails(adsetId: string): Promise<AdSet> {
+  async getAdSetDetails(
+    adsetId: string,
+    fields?: string[] | undefined,
+  ): Promise<AdSet> {
     return this.request<AdSet>(`/${adsetId}`, {
       params: {
-        fields:
+        fields: this.resolveFields(
+          fields,
           "id,name,campaign_id,status,effective_status,optimization_goal,billing_event,bid_strategy,bid_amount,daily_budget,lifetime_budget,budget_remaining,targeting,start_time,end_time,created_time,updated_time",
+        ),
       },
     });
   }
@@ -387,18 +435,46 @@ export class MetaClient {
    */
   async getAds(
     accountId: string,
-    options: { limit?: number | undefined; adset_id?: string | undefined } = {},
+    options: {
+      limit?: number | undefined;
+      adset_id?: string | undefined;
+      campaign_id?: string | undefined;
+      after?: string | undefined;
+      before?: string | undefined;
+      fields?: string[] | undefined;
+    } = {},
   ): Promise<ApiResponse<Ad>> {
     const params: Record<string, string | number | undefined> = {
-      fields:
+      fields: this.resolveFields(
+        options.fields,
         "id,name,adset_id,campaign_id,status,effective_status,creative,created_time,updated_time",
+      ),
       limit: options.limit ?? 25,
+      after: options.after,
+      before: options.before,
     };
 
+    const filters: Array<{ field: string; operator: "EQUAL"; value: string }> =
+      [];
+
     if (options.adset_id) {
-      params["filtering"] = JSON.stringify([
-        { field: "adset.id", operator: "EQUAL", value: options.adset_id },
-      ]);
+      filters.push({
+        field: "adset.id",
+        operator: "EQUAL",
+        value: options.adset_id,
+      });
+    }
+
+    if (options.campaign_id) {
+      filters.push({
+        field: "campaign.id",
+        operator: "EQUAL",
+        value: options.campaign_id,
+      });
+    }
+
+    if (filters.length > 0) {
+      params["filtering"] = JSON.stringify(filters);
     }
 
     return this.request<ApiResponse<Ad>>(`/${accountId}/ads`, {
@@ -409,11 +485,13 @@ export class MetaClient {
   /**
    * Get ad details
    */
-  async getAdDetails(adId: string): Promise<Ad> {
+  async getAdDetails(adId: string, fields?: string[] | undefined): Promise<Ad> {
     return this.request<Ad>(`/${adId}`, {
       params: {
-        fields:
-          "id,name,adset_id,campaign_id,status,effective_status,creative,created_time,updated_time,tracking_specs,conversion_specs",
+        fields: this.resolveFields(
+          fields,
+          "id,name,adset_id,campaign_id,status,effective_status,creative{id,name,body,title,object_story_spec,asset_feed_spec},created_time,updated_time,tracking_specs,conversion_specs",
+        ),
       },
     });
   }
@@ -471,13 +549,22 @@ export class MetaClient {
    */
   async getAdCreatives(
     accountId: string,
-    limit = 25,
+    options: {
+      limit?: number | undefined;
+      after?: string | undefined;
+      before?: string | undefined;
+      fields?: string[] | undefined;
+    } = {},
   ): Promise<ApiResponse<AdCreative>> {
     return this.request<ApiResponse<AdCreative>>(`/${accountId}/adcreatives`, {
       params: {
-        fields:
-          "id,name,title,body,image_hash,image_url,video_id,object_story_spec,call_to_action_type,link_url,thumbnail_url",
-        limit,
+        fields: this.resolveFields(
+          options.fields,
+          "id,name,title,body,image_hash,image_url,video_id,object_story_spec,asset_feed_spec,call_to_action_type,link_url,thumbnail_url",
+        ),
+        limit: options.limit ?? 25,
+        after: options.after,
+        before: options.before,
       },
     });
   }

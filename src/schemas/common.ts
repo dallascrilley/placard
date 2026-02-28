@@ -48,6 +48,14 @@ export function createLimitSchema(entityName: string) {
     .describe(`Maximum number of ${entityName} to return (default: 25)`);
 }
 
+/**
+ * Cursor-based pagination token from Graph API paging.cursors.
+ */
+export const paginationCursorSchema = z
+  .string()
+  .optional()
+  .describe("Pagination cursor from a previous response");
+
 // =============================================================================
 // Insights Schemas
 // =============================================================================
@@ -86,12 +94,12 @@ export const breakdownSchema = z
   .describe("Breakdown dimension for the data");
 
 /**
- * Custom fields selection for insights.
+ * Custom fields selection.
  */
 export const fieldsSchema = z
   .array(z.string())
   .optional()
-  .describe("Specific fields to return (default: standard metrics)");
+  .describe("Specific fields to return (uses tool defaults when omitted)");
 
 // =============================================================================
 // Budget Schemas

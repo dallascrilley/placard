@@ -20,8 +20,10 @@ import {
   accountIdSchema,
   createLimitSchema,
   dailyBudgetSchema,
+  fieldsSchema,
   lifetimeBudgetSchema,
   optionalTargetingSchema,
+  paginationCursorSchema,
   responseFormatSchema,
   targetingSchema,
   userIdSchema,
@@ -46,6 +48,9 @@ Retrieves ad sets from a Meta ad account, with optional filtering by campaign ID
 Args:
   - account_id (string, required): Ad account ID (with or without 'act_' prefix)
   - limit (number, optional): Maximum ad sets to return, 1-100 (default: 25)
+  - after (string, optional): Pagination cursor to fetch the next page
+  - before (string, optional): Pagination cursor to fetch the previous page
+  - fields (array[string], optional): Specific ad set fields to return
   - campaign_id (string, optional): Filter by campaign ID to get ad sets for a specific campaign
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
@@ -75,6 +80,8 @@ Returns:
 Examples:
   - All ad sets: { "account_id": "act_123" }
   - Filter by campaign: { "account_id": "act_123", "campaign_id": "987654321" }
+  - Minimal fields: { "account_id": "act_123", "fields": ["id", "name", "campaign_id"] }
+  - Next page: { "account_id": "act_123", "after": "QVFI..." }
   - With limit: { "account_id": "act_123", "limit": 50 }
 
 Errors:
@@ -84,18 +91,33 @@ Errors:
     {
       account_id: accountIdSchema,
       limit: createLimitSchema("ad sets"),
+      after: paginationCursorSchema,
+      before: paginationCursorSchema,
+      fields: fieldsSchema,
       campaign_id: z.string().optional().describe("Filter by campaign ID"),
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({ account_id, limit, campaign_id, user_id, response_format }) => {
+    async ({
+      account_id,
+      limit,
+      after,
+      before,
+      fields,
+      campaign_id,
+      user_id,
+      response_format,
+    }) => {
       const format = response_format ?? "json";
       try {
         const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
         const response = await client.getAdSets(normalizedId, {
           limit: limit ?? 25,
+          after,
+          before,
+          fields,
           campaign_id,
         });
 
@@ -123,6 +145,7 @@ Retrieves comprehensive details about a single ad set including targeting config
 
 Args:
   - adset_id (string, required): Ad set ID
+  - fields (array[string], optional): Specific ad set fields to return
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
 Returns:
@@ -150,6 +173,7 @@ Returns:
 
 Examples:
   - Get ad set details: { "adset_id": "123456789" }
+  - Minimal fields: { "adset_id": "123456789", "fields": ["id", "name", "status"] }
 
 Errors:
   - 190: Token expired - use meta_get_login_link to re-authenticate
@@ -158,15 +182,16 @@ Errors:
   - 10/200/294: Permission denied - user lacks access to this ad set`,
     {
       adset_id: z.string().describe("Ad set ID"),
+      fields: fieldsSchema,
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({ adset_id, user_id, response_format }) => {
+    async ({ adset_id, fields, user_id, response_format }) => {
       const format = response_format ?? "json";
       try {
         const client = createMetaClient({ userId: user_id ?? "default" });
-        const adset = await client.getAdSetDetails(adset_id);
+        const adset = await client.getAdSetDetails(adset_id, fields);
 
         return createSuccessResponse({ adset }, format);
       } catch (error) {

@@ -509,6 +509,37 @@ describe("MetaClient", () => {
         JSON.stringify({ event_id: "event_789" }),
       );
     });
+
+    it("should pass spend_cap when provided", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { id: "123" } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.createCampaign("act_123", {
+        name: "Capped Campaign",
+        objective: "OUTCOME_SALES",
+        daily_budget: 5000,
+        spend_cap: 50000,
+      });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.spend_cap).toBe(50000);
+    });
+
+    it("should not include spend_cap when not provided", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { id: "123" } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.createCampaign("act_123", {
+        name: "Test",
+        objective: "OUTCOME_SALES",
+        daily_budget: 5000,
+      });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.spend_cap).toBeUndefined();
+    });
   });
 
   describe("updateCampaign", () => {
@@ -576,6 +607,19 @@ describe("MetaClient", () => {
       const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
       const body = JSON.parse(options.body as string);
       expect(body.stop_time).toBe("2026-04-01T00:00:00+0000");
+    });
+
+    it("should pass spend_cap when provided", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { success: true } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.updateCampaign("camp_123", { spend_cap: 25000 });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.spend_cap).toBe(25000);
     });
   });
 

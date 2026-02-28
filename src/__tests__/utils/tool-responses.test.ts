@@ -41,6 +41,68 @@ describe("createSuccessResponse", () => {
     const parsed = JSON.parse(response.content[0]?.text ?? "{}");
     expect(parsed).toEqual({ success: true });
   });
+
+  it("should summarize oversized JSON responses", () => {
+    const previous = process.env["MCP_RESPONSE_MAX_BYTES"];
+    process.env["MCP_RESPONSE_MAX_BYTES"] = "1200";
+    try {
+      const response = createSuccessResponse({
+        creatives: Array.from({ length: 10 }).map((_, i) => ({
+          id: `id_${i}`,
+          object_story_spec: {
+            link_data: {
+              message: "x".repeat(500),
+            },
+          },
+        })),
+      });
+
+      const parsed = JSON.parse(response.content[0]?.text ?? "{}");
+      expect(parsed.success).toBe(true);
+      expect(parsed.truncated).toBe(true);
+      expect(parsed.warning).toContain("Response exceeded size limit");
+      if (parsed.preview) {
+        expect(parsed.preview.creatives.type).toBe("array");
+      }
+    } finally {
+      if (previous === undefined) {
+        process.env["MCP_RESPONSE_MAX_BYTES"] = undefined;
+      } else {
+        process.env["MCP_RESPONSE_MAX_BYTES"] = previous;
+      }
+    }
+  });
+
+  it("should summarize oversized markdown responses", () => {
+    const previous = process.env["MCP_RESPONSE_MAX_BYTES"];
+    process.env["MCP_RESPONSE_MAX_BYTES"] = "1200";
+    try {
+      const response = createSuccessResponse(
+        {
+          creatives: Array.from({ length: 5 }).map((_, i) => ({
+            id: `id_${i}`,
+            body: "y".repeat(400),
+          })),
+        },
+        "markdown",
+      );
+
+      const text = response.content[0]?.text ?? "";
+      if (text.trim().startsWith("{")) {
+        const parsed = JSON.parse(text);
+        expect(parsed.truncated).toBe(true);
+      } else {
+        expect(text).toContain("Truncated");
+        expect(text).toContain("Warning");
+      }
+    } finally {
+      if (previous === undefined) {
+        process.env["MCP_RESPONSE_MAX_BYTES"] = undefined;
+      } else {
+        process.env["MCP_RESPONSE_MAX_BYTES"] = previous;
+      }
+    }
+  });
 });
 
 describe("createErrorResponse", () => {

@@ -33,3 +33,39 @@
 - [x] Validated `/health` = `200`, `/auth/start` returns `auth_url` + `state`
 - [x] Validated `/callback` without params = `400 Missing code or state parameter`
 - [x] Checked container logs for unexpected errors
+
+## P0 Friction Fixes (Issue #7, #8)
+- [x] Add pagination cursor inputs (`after`, `before`) to list tools
+- [x] Thread cursor inputs through `MetaClient` list methods
+- [x] Add `campaign_id` filter support to `meta_get_ads` tool and client
+- [x] Add/adjust API client tests for cursor + campaign filtering behavior
+- [x] Run validation gates (`lint`, `typecheck`, `test` or `qa`) and capture output
+
+## Review (P0 Friction Fixes)
+- [x] Root cause fixed: list tools exposed paging cursors in output but did not accept cursor inputs; `meta_get_ads` had no campaign-level filter path.
+- [x] Validation evidence: `qa` passed (`typecheck`, `lint`, `test`) with 5 pre-existing complexity warnings only; tests: `183 passed`.
+
+## P1 Friction Fixes (Issue #9, #10, #11)
+- [x] Add `fields` input to non-insights read/list tools
+- [x] Thread `fields` through `MetaClient` methods with sane defaults
+- [x] Expand `meta_get_ad_details` creative fields inline
+- [x] Add `asset_feed_spec` to creatives default field set
+- [x] Add/adjust tests for fields override + creative expansion defaults
+- [x] Run `qa` and capture results
+
+## Review (P1 Friction Fixes)
+- [x] Root cause fixed: non-insights read/list tools lacked field projection, causing oversized payloads; ad details returned only creative ID; creatives omitted `asset_feed_spec` by default.
+- [x] Validation evidence: `qa` passed (`typecheck`, `lint`, `test`) with existing complexity warnings only; tests: `193 passed`.
+
+## Fresh-Eyes Review
+- [x] Audited modified code paths for subtle bugs and consistency gaps
+- [x] Fixed empty `fields` edge case: `fields: []` now falls back to defaults instead of sending `fields=`
+- [x] Fixed inconsistent error formatting in `meta_create_campaign` validation path
+- [x] Added regression tests for empty-fields fallback behavior
+- [x] Re-ran `qa`; all gates passed (warnings unchanged/pre-existing)
+
+## P2 Friction Fix (Issue #12)
+- [x] Add size-aware success response management with configurable max bytes
+- [x] Summarize oversized payloads and return bounded fallback payload if still oversized
+- [x] Add regression tests for oversized JSON/markdown success responses
+- [x] Validate with `qa`

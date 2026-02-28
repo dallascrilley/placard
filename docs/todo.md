@@ -76,3 +76,57 @@
 - [x] Harden `fields` validation (character allowlist + max count)
 - [x] Add schema/response tests for new validation and summary behavior
 - [x] Fix docs mismatch in README tool count
+
+## Issue #14/#15 Implementation (2026-02-28)
+- [x] Update tests to assert slim default creative fields for `meta_get_ad_creatives`
+- [x] Update `MetaClient.getAdCreatives` default fields to `id,name,body,thumbnail_url`
+- [x] Update tool/README docs to describe the new creative defaults and ad-details field expansion usage
+- [x] Run `qa` and capture results
+
+## Review (Issue #14/#15 Implementation)
+- [x] Root-cause check: default creative payload reduced by moving `getAdCreatives` default field set from broad expansion to `id,name,body,thumbnail_url`; explicit `fields` override unchanged.
+- [x] Validation evidence captured: targeted Vitest slice (`getAdCreatives|getAdDetails`) passed; `qa` passed with existing 5 lint complexity warnings unchanged; full tests `199 passed`.
+
+## Issue #16 Implementation (2026-02-28)
+- [x] Add optional `campaign_id` input to `meta_get_ad_creatives`
+- [x] Implement campaign-filtered creative retrieval path in `MetaClient.getAdCreatives`
+- [x] Deduplicate creatives by `creative.id` when sourced from ads
+- [x] Add regression test for campaign-filtered path + paging passthrough
+- [x] Run `qa` and capture results
+
+## Review (Issue #16 Implementation)
+- [x] Root-cause check: creatives endpoint lacked campaign scoping; added campaign-scoped ads query (`creative{...}`) and deduped creatives server-side.
+- [x] Validation evidence captured: targeted Vitest slice (`getAdCreatives`) passed; `qa` passed with existing 5 lint complexity warnings unchanged; full tests `200 passed`.
+
+## Issue #17 Implementation (2026-02-28)
+- [x] Extend `response_format` schema to include `compact`
+- [x] Add compact serialization path in `createSuccessResponse` (`[headers, ...rows]` for list payloads)
+- [x] Preserve paging metadata in compact responses
+- [x] Add/adjust schema and response utility tests for compact format
+- [x] Run `qa` and capture results
+
+## Review (Issue #17 Implementation)
+- [x] Root-cause check: repeated field names in list JSON were token-heavy; compact format now emits header row once and row arrays thereafter.
+- [x] Validation evidence captured: targeted Vitest (`tool-responses`, `schemas`) passed; `qa` passed with existing 5 lint complexity warnings unchanged; full tests `204 passed`.
+
+## Issue #19 Implementation (2026-02-28)
+- [x] Request `summary=true` on list endpoints to surface `summary.total_count` when available
+- [x] Extend pagination metadata to include `total_count` and `page` indicator payload
+- [x] Thread summary/limit/cursor context through list tools into `enhancePagination`
+- [x] Add regression tests for pagination enrichment and summary-aware list requests
+- [x] Run `qa` and capture results
+
+## Review (Issue #19 Implementation)
+- [x] Root-cause check: paging cursors were opaque with no scale/progress hints; responses now include `total_count` (when available) and `page` (`current`, `total`) where calculable.
+- [x] Validation evidence captured: targeted Vitest for `getAdCreatives` + `enhancePagination` passed; `qa` passed with existing 5 lint complexity warnings unchanged; full tests `206 passed`.
+
+## Issue #18 Implementation (2026-02-28)
+- [x] Add `meta_get_campaign_copy` high-level tool
+- [x] Implement campaign ads helper in `MetaClient` for `/campaign_id/ads` retrieval with creative fields
+- [x] Deduplicate non-empty creative body text and return single-call copy result payload
+- [x] Update README campaign tool inventory and server registration test expectations
+- [x] Run `qa` and capture results
+
+## Review (Issue #18 Implementation)
+- [x] Root-cause check: extracting campaign copy required multi-tool chaining; new `meta_get_campaign_copy` collapses this to one call with deduped `copy_texts`.
+- [x] Validation evidence captured: targeted Vitest (`getCampaignAds`, server tool registration) passed; `qa` passed with existing lint complexity warnings unchanged; full tests `207 passed`.

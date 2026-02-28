@@ -165,8 +165,8 @@ export const optionalTargetingSchema = z
  * JSON is structured data, Markdown is human-readable.
  */
 export const responseFormatSchema = z
-  .enum(["json", "markdown"])
+  .enum(["json", "markdown", "compact"])
   .optional()
   .describe(
-    "Response format: 'json' (default) or 'markdown' for human-readable output",
+    "Response format: 'json' (default), 'markdown' for human-readable output, or 'compact' for token-efficient tabular lists",
   );

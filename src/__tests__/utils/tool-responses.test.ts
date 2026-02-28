@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createErrorResponse,
   createSuccessResponse,
+  enhancePagination,
 } from "../../utils/tool-responses.js";
 
 describe("createSuccessResponse", () => {
@@ -40,6 +41,47 @@ describe("createSuccessResponse", () => {
 
     const parsed = JSON.parse(response.content[0]?.text ?? "{}");
     expect(parsed).toEqual({ success: true });
+  });
+
+  it("should return compact list format with header row", () => {
+    const response = createSuccessResponse(
+      {
+        creatives: [
+          { id: "1", name: "A", body: "copy a" },
+          { id: "2", name: "B", body: "copy b" },
+        ],
+      },
+      "compact",
+    );
+
+    const parsed = JSON.parse(response.content[0]?.text ?? "{}");
+    expect(parsed.success).toBe(true);
+    expect(parsed.creatives).toEqual([
+      ["id", "name", "body"],
+      ["1", "A", "copy a"],
+      ["2", "B", "copy b"],
+    ]);
+  });
+
+  it("should preserve paging metadata in compact format", () => {
+    const response = createSuccessResponse(
+      {
+        creatives: [{ id: "1", name: "A" }],
+        paging: { cursors: { after: "cursor_1" }, has_more: true, count: 1 },
+      },
+      "compact",
+    );
+
+    const parsed = JSON.parse(response.content[0]?.text ?? "{}");
+    expect(parsed.creatives).toEqual([
+      ["id", "name"],
+      ["1", "A"],
+    ]);
+    expect(parsed.paging).toEqual({
+      cursors: { after: "cursor_1" },
+      has_more: true,
+      count: 1,
+    });
   });
 
   it("should summarize oversized JSON responses", () => {
@@ -196,5 +238,30 @@ describe("createErrorResponse", () => {
   it("should format JSON with 2-space indentation", () => {
     const response = createErrorResponse(new Error("test"));
     expect(response.content[0]?.text).toContain("\n");
+  });
+});
+
+describe("enhancePagination", () => {
+  it("should include total_count and page info when summary metadata is provided", () => {
+    const paging = enhancePagination(
+      { cursors: { before: "b", after: "a" }, next: "next_url" },
+      [{ id: "1" }, { id: "2" }],
+      { totalCount: 48, limit: 25, cursorProvided: false },
+    );
+
+    expect(paging.count).toBe(2);
+    expect(paging.has_more).toBe(true);
+    expect(paging.total_count).toBe(48);
+    expect(paging.page).toEqual({ current: 1, total: 2 });
+  });
+
+  it("should set current page to null when cursor input is provided", () => {
+    const paging = enhancePagination(
+      { cursors: { before: "b", after: "a" } },
+      [{ id: "1" }],
+      { totalCount: 100, limit: 25, cursorProvided: true },
+    );
+
+    expect(paging.page).toEqual({ current: null, total: 4 });
   });
 });

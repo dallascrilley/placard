@@ -69,3 +69,10 @@
 - [x] Summarize oversized payloads and return bounded fallback payload if still oversized
 - [x] Add regression tests for oversized JSON/markdown success responses
 - [x] Validate with `qa`
+
+## Post-Review Hardening
+- [x] Preserve pagination metadata (`paging`, `has_more`, `count`) in summarized oversized responses
+- [x] Keep fallback output format aligned with requested response format (`json`/`markdown`) when possible
+- [x] Harden `fields` validation (character allowlist + max count)
+- [x] Add schema/response tests for new validation and summary behavior
+- [x] Fix docs mismatch in README tool count

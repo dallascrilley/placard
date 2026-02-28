@@ -216,7 +216,7 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 | `meta_get_ad_creatives` | List ad creatives |
 | `meta_create_ad_creative` | Create new ad creative |
 
-### Targeting & Insights (5 tools)
+### Targeting & Insights (6 tools)
 
 | Tool | Description |
 |------|-------------|

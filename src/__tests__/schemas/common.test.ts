@@ -175,6 +175,16 @@ describe("Common Schemas", () => {
     it("accepts empty array", () => {
       expect(fieldsSchema.safeParse([]).success).toBe(true);
     });
+
+    it("rejects invalid field characters", () => {
+      expect(fieldsSchema.safeParse(["name with space"]).success).toBe(false);
+      expect(fieldsSchema.safeParse(["name;drop"]).success).toBe(false);
+    });
+
+    it("rejects more than 50 fields", () => {
+      const tooMany = Array.from({ length: 51 }, (_, i) => `field_${i}`);
+      expect(fieldsSchema.safeParse(tooMany).success).toBe(false);
+    });
   });
 
   describe("budget schemas", () => {

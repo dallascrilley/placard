@@ -19,7 +19,9 @@ import {
   accountIdSchema,
   createLimitSchema,
   dailyBudgetSchema,
+  fieldsSchema,
   lifetimeBudgetSchema,
+  paginationCursorSchema,
   responseFormatSchema,
   userIdSchema,
 } from "../schemas/index.js";
@@ -43,6 +45,9 @@ Retrieves advertising campaigns from a Meta ad account, supporting status filter
 Args:
   - account_id (string, required): Ad account ID (with or without 'act_' prefix)
   - limit (number, optional): Maximum campaigns to return, 1-100 (default: 25)
+  - after (string, optional): Pagination cursor to fetch the next page
+  - before (string, optional): Pagination cursor to fetch the previous page
+  - fields (array[string], optional): Specific campaign fields to return
   - status (string, optional): Filter by status: ACTIVE, PAUSED, DELETED, ARCHIVED
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
@@ -70,6 +75,8 @@ Returns:
 
 Examples:
   - Active campaigns: { "account_id": "act_123", "status": "ACTIVE" }
+  - Next page: { "account_id": "act_123", "after": "QVFI..." }
+  - Minimal fields: { "account_id": "act_123", "fields": ["id", "name", "status"] }
   - With limit: { "account_id": "act_123", "limit": 50 }
   - All campaigns: { "account_id": "act_123" }
   - Markdown format: { "account_id": "act_123", "response_format": "markdown" }
@@ -81,6 +88,9 @@ Errors:
     {
       account_id: accountIdSchema,
       limit: createLimitSchema("campaigns"),
+      after: paginationCursorSchema,
+      before: paginationCursorSchema,
+      fields: fieldsSchema,
       status: z
         .enum(CAMPAIGN_STATUSES)
         .optional()
@@ -89,13 +99,25 @@ Errors:
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({ account_id, limit, status, user_id, response_format }) => {
+    async ({
+      account_id,
+      limit,
+      after,
+      before,
+      fields,
+      status,
+      user_id,
+      response_format,
+    }) => {
       const format = response_format ?? "json";
       try {
         const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
         const response = await client.getCampaigns(normalizedId, {
           limit: limit ?? 25,
+          after,
+          before,
+          fields,
           status,
         });
 
@@ -123,6 +145,7 @@ Retrieves comprehensive details about a single campaign including all settings, 
 
 Args:
   - campaign_id (string, required): Campaign ID
+  - fields (array[string], optional): Specific campaign fields to return
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
 Returns:
@@ -143,6 +166,7 @@ Returns:
 
 Examples:
   - Get campaign details: { "campaign_id": "123456789" }
+  - Minimal fields: { "campaign_id": "123456789", "fields": ["id", "name", "status"] }
   - Markdown format: { "campaign_id": "123456789", "response_format": "markdown" }
 
 Errors:
@@ -152,15 +176,16 @@ Errors:
   - 10/200/294: Permission denied - user lacks access to this campaign`,
     {
       campaign_id: z.string().describe("Campaign ID"),
+      fields: fieldsSchema,
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({ campaign_id, user_id, response_format }) => {
+    async ({ campaign_id, fields, user_id, response_format }) => {
       const format = response_format ?? "json";
       try {
         const client = createMetaClient({ userId: user_id ?? "default" });
-        const campaign = await client.getCampaignDetails(campaign_id);
+        const campaign = await client.getCampaignDetails(campaign_id, fields);
 
         return createSuccessResponse({ campaign }, format);
       } catch (error) {
@@ -252,6 +277,7 @@ Errors:
             new Error(
               "Either daily_budget or lifetime_budget is required. Provide at least one budget type.",
             ),
+            format,
           );
         }
 

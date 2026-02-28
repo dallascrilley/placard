@@ -16,6 +16,8 @@ import {
 import {
   accountIdSchema,
   createLimitSchema,
+  fieldsSchema,
+  paginationCursorSchema,
   responseFormatSchema,
   userIdSchema,
 } from "../schemas/index.js";
@@ -34,12 +36,16 @@ export function registerAdTools(server: McpServer): void {
     "meta_get_ads",
     `List ads for an ad account with optional filtering.
 
-Retrieves ads from a Meta ad account, with optional filtering by ad set ID. Returns ad details including creative information, status, and performance data. Supports pagination for large result sets.
+Retrieves ads from a Meta ad account, with optional filtering by ad set ID or campaign ID. Returns ad details including creative information, status, and performance data. Supports pagination for large result sets.
 
 Args:
   - account_id (string, required): Ad account ID (with or without 'act_' prefix)
   - limit (number, optional): Maximum ads to return, 1-100 (default: 25)
+  - after (string, optional): Pagination cursor to fetch the next page
+  - before (string, optional): Pagination cursor to fetch the previous page
+  - fields (array[string], optional): Specific ad fields to return
   - adset_id (string, optional): Filter by ad set ID to get ads for a specific ad set
+  - campaign_id (string, optional): Filter by campaign ID to get ads for a specific campaign
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
 Returns:
@@ -66,6 +72,9 @@ Returns:
 Examples:
   - All ads: { "account_id": "act_123" }
   - Filter by ad set: { "account_id": "act_123", "adset_id": "987654321" }
+  - Filter by campaign: { "account_id": "act_123", "campaign_id": "123456789" }
+  - Minimal fields: { "account_id": "act_123", "fields": ["id", "name", "creative"] }
+  - Next page: { "account_id": "act_123", "after": "QVFI..." }
   - With limit: { "account_id": "act_123", "limit": 50 }
 
 Errors:
@@ -75,19 +84,37 @@ Errors:
     {
       account_id: accountIdSchema,
       limit: createLimitSchema("ads"),
+      after: paginationCursorSchema,
+      before: paginationCursorSchema,
+      fields: fieldsSchema,
       adset_id: z.string().optional().describe("Filter by ad set ID"),
+      campaign_id: z.string().optional().describe("Filter by campaign ID"),
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({ account_id, limit, adset_id, user_id, response_format }) => {
+    async ({
+      account_id,
+      limit,
+      after,
+      before,
+      fields,
+      adset_id,
+      campaign_id,
+      user_id,
+      response_format,
+    }) => {
       const format = response_format ?? "json";
       try {
         const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
         const response = await client.getAds(normalizedId, {
           limit: limit ?? 25,
+          after,
+          before,
+          fields,
           adset_id,
+          campaign_id,
         });
 
         return createSuccessResponse(
@@ -114,6 +141,7 @@ Retrieves comprehensive details about a single ad including creative content, st
 
 Args:
   - ad_id (string, required): Ad ID
+  - fields (array[string], optional): Specific ad fields to return
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
 Returns:
@@ -135,6 +163,7 @@ Returns:
 
 Examples:
   - Get ad details: { "ad_id": "123456789" }
+  - Minimal fields: { "ad_id": "123456789", "fields": ["id", "name", "creative{id,body}"] }
 
 Errors:
   - 190: Token expired - use meta_get_login_link to re-authenticate
@@ -143,15 +172,16 @@ Errors:
   - 10/200/294: Permission denied - user lacks access to this ad`,
     {
       ad_id: z.string().describe("Ad ID"),
+      fields: fieldsSchema,
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({ ad_id, user_id, response_format }) => {
+    async ({ ad_id, fields, user_id, response_format }) => {
       const format = response_format ?? "json";
       try {
         const client = createMetaClient({ userId: user_id ?? "default" });
-        const ad = await client.getAdDetails(ad_id);
+        const ad = await client.getAdDetails(ad_id, fields);
 
         return createSuccessResponse({ ad }, format);
       } catch (error) {

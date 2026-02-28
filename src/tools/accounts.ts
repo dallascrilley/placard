@@ -10,6 +10,7 @@ import { READ_ONLY_ANNOTATIONS } from "../constants/index.js";
 import {
   accountIdSchema,
   createLimitSchema,
+  fieldsSchema,
   responseFormatSchema,
   userIdSchema,
 } from "../schemas/index.js";
@@ -32,6 +33,7 @@ Retrieves all Meta ad accounts that the authenticated user has access to, with p
 
 Args:
   - limit (number, optional): Maximum number of accounts to return, 1-100 (default: 25)
+  - fields (array[string], optional): Specific account fields to return
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
 Returns:
@@ -59,6 +61,7 @@ Returns:
 Examples:
   - Get first 25 accounts: { "limit": 25 }
   - Get more accounts: { "limit": 100 }
+  - Minimal fields: { "fields": ["id", "name"] }
   - Markdown format: { "limit": 25, "response_format": "markdown" }
 
 Errors:
@@ -67,15 +70,16 @@ Errors:
   - 10/200/294: Permission denied - user lacks ads_read permission`,
     {
       limit: createLimitSchema("accounts"),
+      fields: fieldsSchema,
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({ limit, user_id, response_format }) => {
+    async ({ limit, fields, user_id, response_format }) => {
       const format = response_format ?? "json";
       try {
         const client = createMetaClient({ userId: user_id ?? "default" });
-        const response = await client.getAdAccounts(limit ?? 25);
+        const response = await client.getAdAccounts(limit ?? 25, fields);
 
         return createSuccessResponse(
           {
@@ -101,6 +105,7 @@ Retrieves comprehensive details about a single ad account including status, curr
 
 Args:
   - account_id (string, required): Ad account ID (with or without 'act_' prefix)
+  - fields (array[string], optional): Specific account fields to return
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
 Returns:
@@ -123,6 +128,7 @@ Returns:
 Examples:
   - With act_ prefix: { "account_id": "act_123456789" }
   - Without prefix: { "account_id": "123456789" }
+  - Minimal fields: { "account_id": "act_123", "fields": ["id", "name", "currency"] }
   - Markdown format: { "account_id": "act_123", "response_format": "markdown" }
 
 Errors:
@@ -132,16 +138,17 @@ Errors:
   - 100: Invalid account ID format`,
     {
       account_id: accountIdSchema,
+      fields: fieldsSchema,
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
     READ_ONLY_ANNOTATIONS,
-    async ({ account_id, user_id, response_format }) => {
+    async ({ account_id, fields, user_id, response_format }) => {
       const format = response_format ?? "json";
       try {
         const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
-        const account = await client.getAccountInfo(normalizedId);
+        const account = await client.getAccountInfo(normalizedId, fields);
 
         return createSuccessResponse({ account }, format);
       } catch (error) {

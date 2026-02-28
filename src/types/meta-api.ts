@@ -281,6 +281,7 @@ export interface AdCreative {
   image_url?: string;
   video_id?: string;
   object_story_spec?: ObjectStorySpec;
+  asset_feed_spec?: Record<string, unknown>;
   call_to_action_type?: CallToActionType;
   link_url?: string;
   thumbnail_url?: string;

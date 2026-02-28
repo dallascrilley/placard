@@ -55,12 +55,20 @@ describe("createSuccessResponse", () => {
             },
           },
         })),
+        paging: {
+          cursors: { after: "cursor_after", before: "cursor_before" },
+          next: "https://graph.facebook.com/v22.0/next",
+        },
       });
 
       const parsed = JSON.parse(response.content[0]?.text ?? "{}");
       expect(parsed.success).toBe(true);
       expect(parsed.truncated).toBe(true);
       expect(parsed.warning).toContain("Response exceeded size limit");
+      expect(parsed.paging).toEqual({
+        cursors: { after: "cursor_after", before: "cursor_before" },
+        next: "https://graph.facebook.com/v22.0/next",
+      });
       if (parsed.preview) {
         expect(parsed.preview.creatives.type).toBe("array");
       }
@@ -83,6 +91,10 @@ describe("createSuccessResponse", () => {
             id: `id_${i}`,
             body: "y".repeat(400),
           })),
+          paging: {
+            cursors: { after: "cursor_after", before: "cursor_before" },
+            next: "https://graph.facebook.com/v22.0/next",
+          },
         },
         "markdown",
       );
@@ -91,9 +103,14 @@ describe("createSuccessResponse", () => {
       if (text.trim().startsWith("{")) {
         const parsed = JSON.parse(text);
         expect(parsed.truncated).toBe(true);
+        expect(parsed.paging).toEqual({
+          cursors: { after: "cursor_after", before: "cursor_before" },
+          next: "https://graph.facebook.com/v22.0/next",
+        });
       } else {
         expect(text).toContain("Truncated");
         expect(text).toContain("Warning");
+        expect(text).toContain("More results available");
       }
     } finally {
       if (previous === undefined) {

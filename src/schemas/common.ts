@@ -97,7 +97,16 @@ export const breakdownSchema = z
  * Custom fields selection.
  */
 export const fieldsSchema = z
-  .array(z.string())
+  .array(
+    z
+      .string()
+      .min(1)
+      .regex(
+        /^[a-zA-Z0-9_.{},-]+$/,
+        "Field names can only include letters, numbers, _, ., { }, , and -",
+      ),
+  )
+  .max(50, "Too many fields requested (max 50)")
   .optional()
   .describe("Specific fields to return (uses tool defaults when omitted)");
 

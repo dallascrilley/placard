@@ -179,6 +179,7 @@ function formatKeyAsTitle(key: string): string {
 }
 
 const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024;
+const PRESERVED_SUMMARY_KEYS = new Set(["paging", "has_more", "count"]);
 
 function getMaxResponseBytes(): number {
   const raw = process.env["MCP_RESPONSE_MAX_BYTES"];
@@ -244,8 +245,13 @@ function buildSizeManagedResponseData(
   maxSizeBytes: number,
 ): Record<string, unknown> {
   const preview: Record<string, unknown> = {};
+  const preserved = getPreservedMetadata(responseData);
+  for (const key of Object.keys(preserved)) {
+    delete preview[key];
+  }
+
   for (const [key, value] of Object.entries(responseData)) {
-    if (key === "success") {
+    if (key === "success" || PRESERVED_SUMMARY_KEYS.has(key)) {
       continue;
     }
     preview[key] = summarizeValue(value);
@@ -258,8 +264,21 @@ function buildSizeManagedResponseData(
       "Response exceeded size limit and was summarized. Use fields/limit/pagination to request smaller payloads.",
     original_size_bytes: originalSizeBytes,
     max_size_bytes: maxSizeBytes,
+    ...preserved,
     preview,
   };
+}
+
+function getPreservedMetadata(
+  responseData: Record<string, unknown>,
+): Record<string, unknown> {
+  const preserved: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(responseData)) {
+    if (PRESERVED_SUMMARY_KEYS.has(key)) {
+      preserved[key] = value;
+    }
+  }
+  return preserved;
 }
 
 /**
@@ -284,29 +303,33 @@ export function createSuccessResponse(
       ? toMarkdown(payload)
       : JSON.stringify(payload, null, 2);
   let text = buildText(responseData);
+  const originalSizeBytes = getByteSize(text);
 
-  if (getByteSize(text) > maxSizeBytes) {
+  if (originalSizeBytes > maxSizeBytes) {
     const summarized = buildSizeManagedResponseData(
       responseData,
-      getByteSize(text),
+      originalSizeBytes,
       maxSizeBytes,
     );
     text = buildText(summarized);
 
     // Absolute fallback: guarantee we always return a bounded payload.
     if (getByteSize(text) > maxSizeBytes) {
-      text = JSON.stringify(
-        {
-          success: true,
-          truncated: true,
-          warning:
-            "Response exceeded size limit and could not include preview content.",
-          original_size_bytes: getByteSize(buildText(responseData)),
-          max_size_bytes: maxSizeBytes,
-        },
-        null,
-        2,
-      );
+      const preserved = getPreservedMetadata(responseData);
+      const fallbackPayload: Record<string, unknown> = {
+        success: true,
+        truncated: true,
+        warning:
+          "Response exceeded size limit and could not include preview content.",
+        original_size_bytes: originalSizeBytes,
+        max_size_bytes: maxSizeBytes,
+        ...preserved,
+      };
+      text = buildText(fallbackPayload);
+
+      if (getByteSize(text) > maxSizeBytes) {
+        text = JSON.stringify(fallbackPayload, null, 2);
+      }
     }
   }
 

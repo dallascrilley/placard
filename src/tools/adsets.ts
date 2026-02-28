@@ -29,6 +29,7 @@ import {
   BID_STRATEGIES,
   BILLING_EVENTS,
   CREATE_ANNOTATIONS,
+  DESTINATION_TYPES,
   OPTIMIZATION_GOALS,
   READ_ONLY_ANNOTATIONS,
   UPDATE_ANNOTATIONS,
@@ -230,6 +231,7 @@ Args:
   - bid_strategy (string, optional): Bid strategy. Options: LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, TARGET_COST
   - start_time (string, optional): Start time in ISO 8601 format (e.g., "2025-01-01T00:00:00+0000")
   - promoted_object (object, optional): Promoted object for conversion/event/app ad sets. Required for OFFSITE_CONVERSIONS. Fields: pixel_id, custom_event_type (PURCHASE, LEAD, COMPLETE_REGISTRATION, etc.), event_id, application_id, object_store_url, offer_id, page_id
+  - destination_type (string, optional): Where users go after click. Must match objective/optimization_goal. Options: PHONE_CALL, MESSENGER, WHATSAPP, FACEBOOK, WEBSITE, etc.
   - end_time (string, optional): End time in ISO 8601 format
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
@@ -281,6 +283,12 @@ Errors:
         .describe("Start time in ISO 8601 format"),
       end_time: z.string().optional().describe("End time in ISO 8601 format"),
       promoted_object: promotedObjectSchema,
+      destination_type: z
+        .enum(DESTINATION_TYPES)
+        .optional()
+        .describe(
+          "Where users go after click (PHONE_CALL, MESSENGER, FACEBOOK, etc.). Must match objective/optimization_goal.",
+        ),
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
@@ -302,6 +310,7 @@ Errors:
           start_time,
           end_time,
           promoted_object,
+          destination_type,
         },
         { client, format },
       ) => {
@@ -333,6 +342,7 @@ Errors:
           start_time,
           end_time,
           promoted_object,
+          destination_type,
         });
 
         return createSuccessResponse(

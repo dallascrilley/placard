@@ -157,6 +157,13 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 - Tokens are persisted in SQLite and survive server restarts
 - Use `meta_logout` to revoke a token
 
+## Operations
+
+- Callback deployment and validation runbook:
+  - [`docs/runbooks/example.com`](docs/runbooks/example.com)
+- Local endpoint app snapshot is tracked as git submodule at `endpoint-app/`.
+  - Current submodule URL is local-only (`/Users/operator/Code/meta-oauth-endpoint`) and should be replaced with a shared remote URL when the endpoint repo is published.
+
 ## Available Tools
 
 ### Authentication (4 tools)

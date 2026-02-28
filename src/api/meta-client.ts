@@ -249,6 +249,7 @@ export class MetaClient {
       start_time?: string | undefined;
       stop_time?: string | undefined;
       promoted_object?: object | undefined;
+      spend_cap?: number | undefined;
     },
   ): Promise<{ id: string }> {
     const body: Record<string, unknown> = {
@@ -272,6 +273,7 @@ export class MetaClient {
     if (data.promoted_object !== undefined) {
       body["promoted_object"] = JSON.stringify(data.promoted_object);
     }
+    if (data.spend_cap !== undefined) body["spend_cap"] = data.spend_cap;
 
     return this.request<{ id: string }>(`/${accountId}/campaigns`, {
       method: "POST",
@@ -292,6 +294,7 @@ export class MetaClient {
       bid_strategy?: string | undefined;
       start_time?: string | undefined;
       stop_time?: string | undefined;
+      spend_cap?: number | undefined;
     },
   ): Promise<{ success: boolean }> {
     const body: Record<string, unknown> = {};
@@ -306,6 +309,7 @@ export class MetaClient {
       body["bid_strategy"] = data.bid_strategy;
     if (data.start_time !== undefined) body["start_time"] = data.start_time;
     if (data.stop_time !== undefined) body["stop_time"] = data.stop_time;
+    if (data.spend_cap !== undefined) body["spend_cap"] = data.spend_cap;
 
     return this.request<{ success: boolean }>(`/${campaignId}`, {
       method: "POST",

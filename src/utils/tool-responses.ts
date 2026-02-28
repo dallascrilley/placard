@@ -178,6 +178,90 @@ function formatKeyAsTitle(key: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024;
+
+function getMaxResponseBytes(): number {
+  const raw = process.env["MCP_RESPONSE_MAX_BYTES"];
+  if (!raw) {
+    return DEFAULT_MAX_RESPONSE_BYTES;
+  }
+
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_MAX_RESPONSE_BYTES;
+  }
+
+  return Math.floor(parsed);
+}
+
+function getByteSize(text: string): number {
+  return Buffer.byteLength(text, "utf8");
+}
+
+function summarizeValue(value: unknown): unknown {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    const sample = value.slice(0, 2).map((item) => summarizeValue(item));
+    return {
+      type: "array",
+      count: value.length,
+      sample,
+    };
+  }
+
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const keys = Object.keys(obj);
+    const sampleKeys = keys.slice(0, 10);
+    const sample: Record<string, unknown> = {};
+    for (const key of sampleKeys) {
+      sample[key] = summarizeValue(obj[key]);
+    }
+    return {
+      type: "object",
+      key_count: keys.length,
+      sample,
+    };
+  }
+
+  return String(value);
+}
+
+function buildSizeManagedResponseData(
+  responseData: Record<string, unknown>,
+  originalSizeBytes: number,
+  maxSizeBytes: number,
+): Record<string, unknown> {
+  const preview: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(responseData)) {
+    if (key === "success") {
+      continue;
+    }
+    preview[key] = summarizeValue(value);
+  }
+
+  return {
+    success: true,
+    truncated: true,
+    warning:
+      "Response exceeded size limit and was summarized. Use fields/limit/pagination to request smaller payloads.",
+    original_size_bytes: originalSizeBytes,
+    max_size_bytes: maxSizeBytes,
+    preview,
+  };
+}
+
 /**
  * Creates a standardized success response for MCP tools.
  *
@@ -194,23 +278,43 @@ export function createSuccessResponse(
   format: ResponseFormat = "json",
 ): ToolResponse {
   const responseData = { success: true, ...data };
+  const maxSizeBytes = getMaxResponseBytes();
+  const buildText = (payload: Record<string, unknown>): string =>
+    format === "markdown"
+      ? toMarkdown(payload)
+      : JSON.stringify(payload, null, 2);
+  let text = buildText(responseData);
 
-  if (format === "markdown") {
-    return {
-      content: [
+  if (getByteSize(text) > maxSizeBytes) {
+    const summarized = buildSizeManagedResponseData(
+      responseData,
+      getByteSize(text),
+      maxSizeBytes,
+    );
+    text = buildText(summarized);
+
+    // Absolute fallback: guarantee we always return a bounded payload.
+    if (getByteSize(text) > maxSizeBytes) {
+      text = JSON.stringify(
         {
-          type: "text" as const,
-          text: toMarkdown(responseData),
+          success: true,
+          truncated: true,
+          warning:
+            "Response exceeded size limit and could not include preview content.",
+          original_size_bytes: getByteSize(buildText(responseData)),
+          max_size_bytes: maxSizeBytes,
         },
-      ],
-    };
+        null,
+        2,
+      );
+    }
   }
 
   return {
     content: [
       {
         type: "text" as const,
-        text: JSON.stringify(responseData, null, 2),
+        text,
       },
     ],
   };

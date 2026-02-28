@@ -392,6 +392,7 @@ export class MetaClient {
       start_time?: string | undefined;
       end_time?: string | undefined;
       promoted_object?: object | undefined;
+      destination_type?: string | undefined;
     },
   ): Promise<{ id: string }> {
     const body: Record<string, unknown> = {
@@ -415,6 +416,8 @@ export class MetaClient {
     if (data.promoted_object !== undefined) {
       body["promoted_object"] = JSON.stringify(data.promoted_object);
     }
+    if (data.destination_type !== undefined)
+      body["destination_type"] = data.destination_type;
 
     return this.request<{ id: string }>(`/${accountId}/adsets`, {
       method: "POST",

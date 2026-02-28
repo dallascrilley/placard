@@ -759,6 +759,26 @@ describe("MetaClient", () => {
       const body = JSON.parse(options.body as string);
       expect(body.is_dynamic_creative).toBe(true);
     });
+
+    it("should pass pacing_type when provided", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { id: "adset_123" } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.createAdSet("act_123", {
+        name: "Accelerated Ad Set",
+        campaign_id: "camp_123",
+        optimization_goal: "LINK_CLICKS",
+        billing_event: "IMPRESSIONS",
+        targeting: { geo_locations: { countries: ["US"] } },
+        pacing_type: "no_pacing",
+      });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.pacing_type).toBe('["no_pacing"]');
+    });
   });
 
   describe("getAdSetDetails", () => {

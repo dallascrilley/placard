@@ -393,6 +393,7 @@ export class MetaClient {
       end_time?: string | undefined;
       promoted_object?: object | undefined;
       destination_type?: string | undefined;
+      is_dynamic_creative?: boolean | undefined;
     },
   ): Promise<{ id: string }> {
     const body: Record<string, unknown> = {
@@ -418,6 +419,8 @@ export class MetaClient {
     }
     if (data.destination_type !== undefined)
       body["destination_type"] = data.destination_type;
+    if (data.is_dynamic_creative !== undefined)
+      body["is_dynamic_creative"] = data.is_dynamic_creative;
 
     return this.request<{ id: string }>(`/${accountId}/adsets`, {
       method: "POST",

@@ -245,6 +245,7 @@ export class MetaClient {
       special_ad_categories?: string[] | undefined;
       daily_budget?: number | undefined;
       lifetime_budget?: number | undefined;
+      bid_strategy?: string | undefined;
     },
   ): Promise<{ id: string }> {
     const body: Record<string, unknown> = {
@@ -259,6 +260,9 @@ export class MetaClient {
     }
     if (data.lifetime_budget !== undefined) {
       body["lifetime_budget"] = data.lifetime_budget;
+    }
+    if (data.bid_strategy !== undefined) {
+      body["bid_strategy"] = data.bid_strategy;
     }
 
     return this.request<{ id: string }>(`/${accountId}/campaigns`, {

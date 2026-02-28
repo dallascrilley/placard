@@ -7,6 +7,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
+  BID_STRATEGIES,
   CAMPAIGN_OBJECTIVES,
   CAMPAIGN_STATUSES,
   CREATE_ANNOTATIONS,
@@ -310,6 +311,7 @@ Args:
   - special_ad_categories (array, optional): Special ad categories if applicable. Required for housing, employment, credit, political ads. Options: HOUSING, EMPLOYMENT, CREDIT, POLITICAL_AND_ISSUE_ADS
   - daily_budget (number, optional): Daily budget in cents (e.g., 1000 = $10.00). Required if lifetime_budget not provided.
   - lifetime_budget (number, optional): Lifetime budget in cents (e.g., 10000 = $100.00). Required if daily_budget not provided.
+  - bid_strategy (string, optional): Bid strategy. Options: LOWEST_COST_WITHOUT_CAP (default, recommended), LOWEST_COST_WITH_BID_CAP, COST_CAP, LOWEST_COST_WITH_MIN_ROAS
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
 Returns:
@@ -323,6 +325,7 @@ Examples:
   - Daily budget campaign: { "account_id": "act_123", "name": "Summer Sale", "objective": "OUTCOME_TRAFFIC", "daily_budget": 5000 }
   - Lifetime budget: { "account_id": "act_123", "name": "Holiday Promo", "objective": "OUTCOME_SALES", "lifetime_budget": 50000 }
   - With special category: { "account_id": "act_123", "name": "Job Posting", "objective": "OUTCOME_LEADS", "daily_budget": 3000, "special_ad_categories": ["EMPLOYMENT"] }
+  - With bid strategy: { "account_id": "act_123", "name": "Sales Campaign", "objective": "OUTCOME_SALES", "daily_budget": 5000, "bid_strategy": "LOWEST_COST_WITHOUT_CAP" }
 
 Errors:
   - 190: Token expired - use meta_get_login_link to re-authenticate
@@ -353,6 +356,12 @@ Errors:
       lifetime_budget: lifetimeBudgetSchema.describe(
         "Lifetime budget in cents (required if no daily_budget)",
       ),
+      bid_strategy: z
+        .enum(BID_STRATEGIES)
+        .optional()
+        .describe(
+          "Bid strategy. Options: LOWEST_COST_WITHOUT_CAP (default, recommended), LOWEST_COST_WITH_BID_CAP, COST_CAP, LOWEST_COST_WITH_MIN_ROAS",
+        ),
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
@@ -367,6 +376,7 @@ Errors:
           special_ad_categories,
           daily_budget,
           lifetime_budget,
+          bid_strategy,
         },
         { client, format },
       ) => {
@@ -397,6 +407,7 @@ Errors:
               : [],
           daily_budget,
           lifetime_budget,
+          bid_strategy,
         });
 
         return createSuccessResponse(

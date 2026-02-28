@@ -79,10 +79,15 @@ describe("createServer", () => {
         "get_campaign_insights",
         "get_adset_insights",
         "get_ad_insights",
+        // Composite (4)
+        "get_campaign_summary",
+        "get_account_overview",
+        "search_ads",
+        "validate_campaign_config",
       ];
 
-      // Verify tool count: 1+3+2+5+4+4+2+2+4 = 27
-      expect(expectedTools.length).toBe(27);
+      // Verify tool count: 1+3+2+5+4+4+2+2+4+4 = 31
+      expect(expectedTools.length).toBe(31);
 
       // Server should create without errors (tools registered internally)
       const server = createServer();

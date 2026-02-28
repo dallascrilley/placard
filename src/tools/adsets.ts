@@ -5,6 +5,24 @@
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+
+export function validateAdvantageAgeConstraint(
+  targeting: Record<string, unknown>,
+): string | null {
+  const automation = targeting?.["targeting_automation"] as
+    | Record<string, unknown>
+    | undefined;
+  const advantageAudience = automation?.["advantage_audience"];
+  const ageMax = targeting?.["age_max"] as number | undefined;
+
+  if (ageMax !== undefined && ageMax < 65) {
+    if (advantageAudience === undefined || advantageAudience !== 0) {
+      return `age_max (${ageMax}) is below 65. With Advantage+ audience (the default), Meta requires age_max to be 65.`;
+    }
+  }
+  return null;
+}
+
 import { z } from "zod";
 import {
   ADSET_STATUSES,
@@ -22,8 +40,8 @@ import {
   fieldsSchema,
   lifetimeBudgetSchema,
   optionalTargetingSchema,
-  promotedObjectSchema,
   paginationCursorSchema,
+  promotedObjectSchema,
   responseFormatSchema,
   targetingSchema,
   userIdSchema,
@@ -31,6 +49,7 @@ import {
 import { normalizeAccountId } from "../utils/id-normalizer.js";
 import { withToolHandler } from "../utils/tool-handler.js";
 import {
+  createErrorResponse,
   createSuccessResponse,
   enhancePagination,
 } from "../utils/tool-responses.js";
@@ -203,7 +222,7 @@ Args:
   - campaign_id (string, required): Parent campaign ID
   - optimization_goal (string, required): What the ad set optimizes for. Options: LINK_CLICKS, OUTCOME_CLICKS, IMPRESSIONS, REACH, LANDING_PAGE_VIEWS, POST_ENGAGEMENT, THRUPLAY, etc.
   - billing_event (string, required): Billing event type. Options: IMPRESSIONS, LINK_CLICKS, OFFER_CLAIMS, PAGE_LIKES, POST_ENGAGEMENT, THRUPLAY
-  - targeting (object, required): Targeting specification object with geo_locations, age_min, age_max, genders, interests, behaviors, etc.
+  - targeting (object, required): Targeting specification object with geo_locations, age_min, age_max, genders, interests, behaviors, etc. Note: When using Advantage+ audience (targeting.targeting_automation.advantage_audience = 1 or omitted), age_max must be 65. Meta rejects age_max < 65 with "Maximum age is below threshold". For restrictive age targeting, set targeting_automation.advantage_audience = 0.
   - status (string, optional): Initial ad set status - ACTIVE or PAUSED (default: PAUSED)
   - daily_budget (number, optional): Daily budget in cents (e.g., 1000 = $10.00). Required if lifetime_budget not provided.
   - lifetime_budget (number, optional): Lifetime budget in cents (e.g., 10000 = $100.00). Required if daily_budget not provided.
@@ -287,6 +306,18 @@ Errors:
         { client, format },
       ) => {
         const normalizedId = normalizeAccountId(account_id);
+
+        const err = validateAdvantageAgeConstraint(
+          targeting as Record<string, unknown>,
+        );
+        if (err) {
+          return createErrorResponse(
+            new Error(
+              `${err} Either set age_max to 65 (Meta uses it as a suggestion) or set targeting.targeting_automation.advantage_audience to 0 to disable Advantage+ audience.`,
+            ),
+            format,
+          );
+        }
 
         const result = await client.createAdSet(normalizedId, {
           name,

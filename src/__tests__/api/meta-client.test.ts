@@ -284,6 +284,27 @@ describe("MetaClient", () => {
       const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
       expect(calledUrl).toContain("limit=25");
     });
+
+    it("should allow overriding returned fields", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getAdAccounts(25, ["id", "name"]);
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("fields=id%2Cname");
+    });
+
+    it("should fall back to default fields when fields is empty", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getAdAccounts(25, []);
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("account_status");
+      expect(calledUrl).not.toContain("fields=&");
+    });
   });
 
   describe("getAccountInfo", () => {
@@ -297,6 +318,18 @@ describe("MetaClient", () => {
       expect(result).toEqual(mockAccount);
       const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
       expect(calledUrl).toContain("/act_123");
+    });
+
+    it("should allow overriding returned fields", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { id: "act_123" } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getAccountInfo("act_123", ["id", "name"]);
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("fields=id%2Cname");
     });
   });
 
@@ -324,6 +357,47 @@ describe("MetaClient", () => {
       const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
       expect(calledUrl).toContain("filtering=");
       expect(calledUrl).toContain("ACTIVE");
+    });
+
+    it("should pass cursor pagination params", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getCampaigns("act_123", {
+        after: "after_cursor",
+        before: "before_cursor",
+      });
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("after=after_cursor");
+      expect(calledUrl).toContain("before=before_cursor");
+    });
+
+    it("should allow overriding returned fields", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getCampaigns("act_123", {
+        fields: ["id", "name", "status"],
+      });
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("fields=id%2Cname%2Cstatus");
+    });
+  });
+
+  describe("getCampaignDetails", () => {
+    it("should allow overriding returned fields", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { id: "camp_123" } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getCampaignDetails("camp_123", ["id", "name", "status"]);
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("/camp_123");
+      expect(calledUrl).toContain("fields=id%2Cname%2Cstatus");
     });
   });
 
@@ -433,6 +507,47 @@ describe("MetaClient", () => {
       expect(calledUrl).toContain("filtering=");
       expect(calledUrl).toContain("camp_456");
     });
+
+    it("should pass cursor pagination params", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getAdSets("act_123", {
+        after: "after_cursor",
+        before: "before_cursor",
+      });
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("after=after_cursor");
+      expect(calledUrl).toContain("before=before_cursor");
+    });
+
+    it("should allow overriding returned fields", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getAdSets("act_123", {
+        fields: ["id", "name", "campaign_id"],
+      });
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("fields=id%2Cname%2Ccampaign_id");
+    });
+  });
+
+  describe("getAdSetDetails", () => {
+    it("should allow overriding returned fields", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { id: "adset_123" } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getAdSetDetails("adset_123", ["id", "name", "status"]);
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("/adset_123");
+      expect(calledUrl).toContain("fields=id%2Cname%2Cstatus");
+    });
   });
 
   describe("getAds", () => {
@@ -446,6 +561,143 @@ describe("MetaClient", () => {
       expect(result).toEqual(mockData);
       const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
       expect(calledUrl).toContain("/act_123/ads");
+    });
+
+    it("should filter by campaign_id", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getAds("act_123", { campaign_id: "camp_789" });
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("filtering=");
+      expect(calledUrl).toContain("campaign.id");
+      expect(calledUrl).toContain("camp_789");
+    });
+
+    it("should include both adset_id and campaign_id filters when provided", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getAds("act_123", {
+        adset_id: "adset_123",
+        campaign_id: "camp_456",
+      });
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("adset.id");
+      expect(calledUrl).toContain("campaign.id");
+      expect(calledUrl).toContain("adset_123");
+      expect(calledUrl).toContain("camp_456");
+    });
+
+    it("should pass cursor pagination params", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getAds("act_123", {
+        after: "after_cursor",
+        before: "before_cursor",
+      });
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("after=after_cursor");
+      expect(calledUrl).toContain("before=before_cursor");
+    });
+
+    it("should allow overriding returned fields", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getAds("act_123", { fields: ["id", "name", "creative"] });
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("fields=id%2Cname%2Ccreative");
+    });
+  });
+
+  describe("getAdDetails", () => {
+    it("should request expanded creative fields by default", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { id: "ad_123" } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getAdDetails("ad_123");
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("/ad_123");
+      expect(calledUrl).toContain("creative%7Bid%2Cname%2Cbody%2Ctitle");
+      expect(calledUrl).toContain("asset_feed_spec");
+    });
+
+    it("should allow overriding returned fields", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { id: "ad_123" } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getAdDetails("ad_123", ["id", "name", "creative{id,body}"]);
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("fields=id%2Cname%2Ccreative%7Bid%2Cbody%7D");
+    });
+
+    it("should fall back to default fields when fields is empty", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { id: "ad_123" } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getAdDetails("ad_123", []);
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("creative%7Bid%2Cname%2Cbody%2Ctitle");
+      expect(calledUrl).not.toContain("fields=&");
+    });
+  });
+
+  describe("getAdCreatives", () => {
+    it("should fetch ad creatives with default limit", async () => {
+      const mockData = { data: [{ id: "creative_1" }] };
+      mockFetch.mockResolvedValue(createMockResponse({ body: mockData }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      const result = await client.getAdCreatives("act_123");
+
+      expect(result).toEqual(mockData);
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("/act_123/adcreatives");
+      expect(calledUrl).toContain("limit=25");
+      expect(calledUrl).toContain("asset_feed_spec");
+    });
+
+    it("should pass cursor pagination params", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getAdCreatives("act_123", {
+        limit: 100,
+        after: "after_cursor",
+        before: "before_cursor",
+      });
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("limit=100");
+      expect(calledUrl).toContain("after=after_cursor");
+      expect(calledUrl).toContain("before=before_cursor");
+    });
+
+    it("should allow overriding returned fields", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getAdCreatives("act_123", {
+        fields: ["id", "name", "body"],
+      });
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("fields=id%2Cname%2Cbody");
     });
   });
 

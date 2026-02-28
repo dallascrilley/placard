@@ -182,11 +182,12 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 | `meta_get_ad_accounts` | List accessible ad accounts |
 | `meta_get_account_info` | Get detailed account information |
 
-### Campaigns (4 tools)
+### Campaigns (5 tools)
 
 | Tool | Description |
 |------|-------------|
 | `meta_get_campaigns` | List campaigns with filtering |
+| `meta_get_campaign_copy` | Get deduplicated ad copy text for a campaign |
 | `meta_get_campaign_details` | Get campaign details |
 | `meta_create_campaign` | Create new campaign |
 | `meta_update_campaign` | Update campaign settings |
@@ -232,6 +233,13 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 | Tool | Description |
 |------|-------------|
 | `meta_health_check` | Verify server and API connectivity |
+
+## Field Defaults
+
+- `meta_get_ad_creatives` defaults to slim fields: `id,name,body,thumbnail_url`.
+- Use the `fields` parameter to request full creative expansion when needed.
+- `meta_get_ad_details` supports nested field expansion passthrough (for example: `creative{id,body,title}`).
+- List tools support `response_format: "compact"` for token-efficient tabular output (`[headers, ...rows]`).
 
 ## Development
 

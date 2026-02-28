@@ -34,14 +34,15 @@ export function registerCreativeTools(server: McpServer): void {
     "meta_get_ad_creatives",
     `List ad creatives for an ad account.
 
-Retrieves ad creatives (reusable creative assets) from a Meta ad account. Creatives can be used across multiple ads. Returns creative details including name, type, and associated assets. Supports pagination for large result sets.
+Retrieves ad creatives (reusable creative assets) from a Meta ad account. Creatives can be used across multiple ads. By default returns a slim field set (id, name, body, thumbnail_url) for token-efficient workflows. Supports pagination for large result sets.
 
 Args:
   - account_id (string, required): Ad account ID (with or without 'act_' prefix)
+  - campaign_id (string, optional): Filter creatives to ads in a specific campaign
   - limit (number, optional): Maximum creatives to return, 1-100 (default: 25)
   - after (string, optional): Pagination cursor to fetch the next page
   - before (string, optional): Pagination cursor to fetch the previous page
-  - fields (array[string], optional): Specific creative fields to return
+  - fields (array[string], optional): Specific creative fields to return (default: id,name,body,thumbnail_url)
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
 Returns:
@@ -58,6 +59,8 @@ Returns:
       }
     ],
     "paging": {
+      "total_count": 248,
+      "page": { "current": 1, "total": 10 },
       "cursors": {
         "before": "...",
         "after": "..."
@@ -68,6 +71,7 @@ Returns:
 
 Examples:
   - Get first 25 creatives: { "account_id": "act_123" }
+  - Filter by campaign: { "account_id": "act_123", "campaign_id": "123456789" }
   - Get next page: { "account_id": "act_123", "after": "QVFI..." }
   - Minimal fields: { "account_id": "act_123", "fields": ["id", "name", "body"] }
   - Get more: { "account_id": "act_123", "limit": 100 }
@@ -78,6 +82,7 @@ Errors:
   - 10/200/294: Permission denied - user lacks access to account`,
     {
       account_id: accountIdSchema,
+      campaign_id: z.string().optional().describe("Filter by campaign ID"),
       limit: createLimitSchema("creatives"),
       after: paginationCursorSchema,
       before: paginationCursorSchema,
@@ -88,6 +93,7 @@ Errors:
     READ_ONLY_ANNOTATIONS,
     async ({
       account_id,
+      campaign_id,
       limit,
       after,
       before,
@@ -100,6 +106,7 @@ Errors:
         const normalizedId = normalizeAccountId(account_id);
         const client = createMetaClient({ userId: user_id ?? "default" });
         const response = await client.getAdCreatives(normalizedId, {
+          campaign_id,
           limit: limit ?? 25,
           after,
           before,
@@ -109,7 +116,11 @@ Errors:
         return createSuccessResponse(
           {
             creatives: response.data,
-            paging: enhancePagination(response.paging, response.data),
+            paging: enhancePagination(response.paging, response.data, {
+              totalCount: response.summary?.total_count,
+              limit: limit ?? 25,
+              cursorProvided: !!after || !!before,
+            }),
           },
           format,
         );

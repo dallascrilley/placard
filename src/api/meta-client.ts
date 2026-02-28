@@ -155,6 +155,7 @@ export class MetaClient {
           "id,account_id,name,currency,timezone_name,account_status,amount_spent,balance,business",
         ),
         limit,
+        summary: true,
       },
     });
   }
@@ -193,7 +194,7 @@ export class MetaClient {
       fields?: string[] | undefined;
     } = {},
   ): Promise<ApiResponse<Campaign>> {
-    const params: Record<string, string | number | undefined> = {
+    const params: Record<string, string | number | boolean | undefined> = {
       fields: this.resolveFields(
         options.fields,
         "id,name,objective,status,effective_status,created_time,updated_time,start_time,stop_time,daily_budget,lifetime_budget,budget_remaining,special_ad_categories",
@@ -201,6 +202,7 @@ export class MetaClient {
       limit: options.limit ?? 25,
       after: options.after,
       before: options.before,
+      summary: true,
     };
 
     if (options.status) {
@@ -309,7 +311,7 @@ export class MetaClient {
       fields?: string[] | undefined;
     } = {},
   ): Promise<ApiResponse<AdSet>> {
-    const params: Record<string, string | number | undefined> = {
+    const params: Record<string, string | number | boolean | undefined> = {
       fields: this.resolveFields(
         options.fields,
         "id,name,campaign_id,status,effective_status,optimization_goal,billing_event,bid_strategy,bid_amount,daily_budget,lifetime_budget,budget_remaining,targeting,start_time,end_time,created_time,updated_time",
@@ -317,6 +319,7 @@ export class MetaClient {
       limit: options.limit ?? 25,
       after: options.after,
       before: options.before,
+      summary: true,
     };
 
     if (options.campaign_id) {
@@ -444,7 +447,7 @@ export class MetaClient {
       fields?: string[] | undefined;
     } = {},
   ): Promise<ApiResponse<Ad>> {
-    const params: Record<string, string | number | undefined> = {
+    const params: Record<string, string | number | boolean | undefined> = {
       fields: this.resolveFields(
         options.fields,
         "id,name,adset_id,campaign_id,status,effective_status,creative,created_time,updated_time",
@@ -452,6 +455,7 @@ export class MetaClient {
       limit: options.limit ?? 25,
       after: options.after,
       before: options.before,
+      summary: true,
     };
 
     const filters: Array<{ field: string; operator: "EQUAL"; value: string }> =
@@ -492,6 +496,32 @@ export class MetaClient {
           fields,
           "id,name,adset_id,campaign_id,status,effective_status,creative{id,name,body,title,object_story_spec,asset_feed_spec},created_time,updated_time,tracking_specs,conversion_specs",
         ),
+      },
+    });
+  }
+
+  /**
+   * Get ads for a specific campaign
+   */
+  async getCampaignAds(
+    campaignId: string,
+    options: {
+      limit?: number | undefined;
+      after?: string | undefined;
+      before?: string | undefined;
+      fields?: string[] | undefined;
+    } = {},
+  ): Promise<ApiResponse<Ad>> {
+    return this.request<ApiResponse<Ad>>(`/${campaignId}/ads`, {
+      params: {
+        fields: this.resolveFields(
+          options.fields,
+          "id,name,creative{id,body,title}",
+        ),
+        limit: options.limit ?? 100,
+        after: options.after,
+        before: options.before,
+        summary: true,
       },
     });
   }
@@ -554,17 +584,55 @@ export class MetaClient {
       after?: string | undefined;
       before?: string | undefined;
       fields?: string[] | undefined;
+      campaign_id?: string | undefined;
     } = {},
   ): Promise<ApiResponse<AdCreative>> {
+    const creativeFields = this.resolveFields(
+      options.fields,
+      "id,name,body,thumbnail_url",
+    );
+
+    if (options.campaign_id) {
+      const adsResponse = await this.request<
+        ApiResponse<{ creative?: AdCreative | undefined }>
+      >(`/${accountId}/ads`, {
+        params: {
+          fields: `creative{${creativeFields}}`,
+          limit: options.limit ?? 25,
+          after: options.after,
+          before: options.before,
+          summary: true,
+          filtering: JSON.stringify([
+            {
+              field: "campaign.id",
+              operator: "EQUAL",
+              value: options.campaign_id,
+            },
+          ]),
+        },
+      });
+
+      const creativesById = new Map<string, AdCreative>();
+      for (const ad of adsResponse.data) {
+        const creative = ad.creative;
+        if (creative?.id && !creativesById.has(creative.id)) {
+          creativesById.set(creative.id, creative);
+        }
+      }
+
+      return {
+        data: Array.from(creativesById.values()),
+        ...(adsResponse.paging ? { paging: adsResponse.paging } : {}),
+      };
+    }
+
     return this.request<ApiResponse<AdCreative>>(`/${accountId}/adcreatives`, {
       params: {
-        fields: this.resolveFields(
-          options.fields,
-          "id,name,title,body,image_hash,image_url,video_id,object_story_spec,asset_feed_spec,call_to_action_type,link_url,thumbnail_url",
-        ),
+        fields: creativeFields,
         limit: options.limit ?? 25,
         after: options.after,
         before: options.before,
+        summary: true,
       },
     });
   }

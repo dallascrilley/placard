@@ -657,8 +657,25 @@ describe("MetaClient", () => {
     });
   });
 
+  describe("getCampaignAds", () => {
+    it("should fetch ads from campaign endpoint with summary metadata", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getCampaignAds("camp_123");
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("/camp_123/ads");
+      expect(calledUrl).toContain("summary=true");
+      expect(calledUrl).toContain(
+        "fields=id%2Cname%2Ccreative%7Bid%2Cbody%2Ctitle%7D",
+      );
+      expect(calledUrl).toContain("limit=100");
+    });
+  });
+
   describe("getAdCreatives", () => {
-    it("should fetch ad creatives with default limit", async () => {
+    it("should fetch ad creatives with slim default fields", async () => {
       const mockData = { data: [{ id: "creative_1" }] };
       mockFetch.mockResolvedValue(createMockResponse({ body: mockData }));
 
@@ -669,7 +686,9 @@ describe("MetaClient", () => {
       const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
       expect(calledUrl).toContain("/act_123/adcreatives");
       expect(calledUrl).toContain("limit=25");
-      expect(calledUrl).toContain("asset_feed_spec");
+      expect(calledUrl).toContain("summary=true");
+      expect(calledUrl).toContain("fields=id%2Cname%2Cbody%2Cthumbnail_url");
+      expect(calledUrl).not.toContain("asset_feed_spec");
     });
 
     it("should pass cursor pagination params", async () => {
@@ -698,6 +717,43 @@ describe("MetaClient", () => {
 
       const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
       expect(calledUrl).toContain("fields=id%2Cname%2Cbody");
+    });
+
+    it("should filter creatives by campaign_id via ads and deduplicate by creative id", async () => {
+      const mockData = {
+        data: [
+          {
+            id: "ad_1",
+            creative: { id: "creative_1", name: "Creative A", body: "Copy A" },
+          },
+          {
+            id: "ad_2",
+            creative: { id: "creative_1", name: "Creative A", body: "Copy A" },
+          },
+          { id: "ad_3" },
+        ],
+        paging: { cursors: { after: "after_1" } },
+      };
+      mockFetch.mockResolvedValue(createMockResponse({ body: mockData }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      const result = await client.getAdCreatives("act_123", {
+        campaign_id: "camp_123",
+      });
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("/act_123/ads");
+      expect(calledUrl).toContain("filtering=");
+      expect(calledUrl).toContain("campaign.id");
+      expect(calledUrl).toContain("camp_123");
+      expect(calledUrl).toContain("summary=true");
+      expect(calledUrl).toContain(
+        "fields=creative%7Bid%2Cname%2Cbody%2Cthumbnail_url%7D",
+      );
+      expect(result.data).toEqual([
+        { id: "creative_1", name: "Creative A", body: "Copy A" },
+      ]);
+      expect(result.paging).toEqual(mockData.paging);
     });
   });
 

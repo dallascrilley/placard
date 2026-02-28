@@ -13,7 +13,7 @@ export interface ToolResponse {
   isError?: boolean;
 }
 
-export type ResponseFormat = "json" | "markdown";
+export type ResponseFormat = "json" | "markdown" | "compact";
 
 /**
  * Meta API paging structure.
@@ -33,6 +33,11 @@ export interface MetaPaging {
 export interface EnhancedPaging extends MetaPaging {
   has_more: boolean;
   count: number;
+  total_count?: number;
+  page?: {
+    current: number | null;
+    total: number;
+  };
 }
 
 /**
@@ -45,11 +50,31 @@ export interface EnhancedPaging extends MetaPaging {
 export function enhancePagination(
   paging: MetaPaging | undefined,
   dataArray: unknown[],
+  options: {
+    totalCount?: number | undefined;
+    limit?: number | undefined;
+    cursorProvided?: boolean | undefined;
+  } = {},
 ): EnhancedPaging {
+  const totalCount = options.totalCount;
+  const totalPages =
+    totalCount !== undefined && options.limit && options.limit > 0
+      ? Math.ceil(totalCount / options.limit)
+      : undefined;
+
   return {
     ...paging,
     has_more: !!paging?.next,
     count: dataArray.length,
+    ...(totalCount !== undefined ? { total_count: totalCount } : {}),
+    ...(totalPages !== undefined
+      ? {
+          page: {
+            current: options.cursorProvided ? null : 1,
+            total: totalPages,
+          },
+        }
+      : {}),
   };
 }
 
@@ -281,6 +306,47 @@ function getPreservedMetadata(
   return preserved;
 }
 
+function buildCompactPayload(
+  payload: Record<string, unknown>,
+): Record<string, unknown> {
+  const compact = { ...payload };
+  const listEntry = Object.entries(payload).find(([key, value]) => {
+    if (key === "success" || key === "paging") {
+      return false;
+    }
+    return (
+      Array.isArray(value) &&
+      value.every(
+        (item) =>
+          typeof item === "object" && item !== null && !Array.isArray(item),
+      )
+    );
+  });
+
+  if (!listEntry) {
+    return compact;
+  }
+
+  const [listKey, value] = listEntry;
+  const rows = value as Array<Record<string, unknown>>;
+  const headers: string[] = [];
+
+  for (const row of rows) {
+    for (const key of Object.keys(row)) {
+      if (!headers.includes(key)) {
+        headers.push(key);
+      }
+    }
+  }
+
+  const compactRows: unknown[][] = rows.map((row) =>
+    headers.map((key) => (key in row ? row[key] : null)),
+  );
+
+  compact[listKey] = [headers, ...compactRows];
+  return compact;
+}
+
 /**
  * Creates a standardized success response for MCP tools.
  *
@@ -301,7 +367,9 @@ export function createSuccessResponse(
   const buildText = (payload: Record<string, unknown>): string =>
     format === "markdown"
       ? toMarkdown(payload)
-      : JSON.stringify(payload, null, 2);
+      : format === "compact"
+        ? JSON.stringify(buildCompactPayload(payload), null, 2)
+        : JSON.stringify(payload, null, 2);
   let text = buildText(responseData);
   const originalSizeBytes = getByteSize(text);
 

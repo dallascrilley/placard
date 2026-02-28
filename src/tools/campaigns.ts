@@ -316,6 +316,7 @@ Args:
   - start_time (string, optional): Campaign start time in ISO 8601 format
   - stop_time (string, optional): Campaign stop time in ISO 8601 format
   - promoted_object (object, optional): Promoted object for event/app campaigns. Fields: event_id, application_id, pixel_id, custom_event_type, etc.
+  - spend_cap (number, optional): Hard cap on total campaign spend in cents (e.g., 50000 = $500). Different from lifetime_budget.
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
 Returns:
@@ -379,6 +380,12 @@ Errors:
           "Campaign stop time in ISO 8601 format (e.g., '2026-03-15T23:59:59+0000')",
         ),
       promoted_object: promotedObjectSchema,
+      spend_cap: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe("Hard cap on total campaign spend in cents"),
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
@@ -397,6 +404,7 @@ Errors:
           start_time,
           stop_time,
           promoted_object,
+          spend_cap,
         },
         { client, format },
       ) => {
@@ -431,6 +439,7 @@ Errors:
           start_time,
           stop_time,
           promoted_object,
+          spend_cap,
         });
 
         return createSuccessResponse(
@@ -462,6 +471,7 @@ Args:
   - bid_strategy (string, optional): New bid strategy. Options: LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, LOWEST_COST_WITH_MIN_ROAS
   - start_time (string, optional): New campaign start time in ISO 8601 format
   - stop_time (string, optional): New campaign stop time in ISO 8601 format
+  - spend_cap (number, optional): New hard cap on total campaign spend in cents
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
 Returns:
@@ -507,6 +517,12 @@ Errors:
         .string()
         .optional()
         .describe("Campaign stop time in ISO 8601 format"),
+      spend_cap: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe("Hard cap on total campaign spend in cents"),
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
@@ -522,6 +538,7 @@ Errors:
           bid_strategy,
           start_time,
           stop_time,
+          spend_cap,
         },
         { client, format },
       ) => {
@@ -533,6 +550,7 @@ Errors:
           bid_strategy,
           start_time,
           stop_time,
+          spend_cap,
         });
 
         return createSuccessResponse(

@@ -491,6 +491,24 @@ describe("MetaClient", () => {
       expect(body.start_time).toBe("2026-03-01T00:00:00+0000");
       expect(body.stop_time).toBe("2026-03-15T23:59:59+0000");
     });
+
+    it("should pass promoted_object when provided", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { id: "123" } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.createCampaign("act_123", {
+        name: "Event Campaign",
+        objective: "OUTCOME_ENGAGEMENT",
+        daily_budget: 5000,
+        promoted_object: { event_id: "event_789" },
+      });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.promoted_object).toBe(
+        JSON.stringify({ event_id: "event_789" }),
+      );
+    });
   });
 
   describe("updateCampaign", () => {

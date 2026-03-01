@@ -5,6 +5,8 @@
  * rate limiting, and structured error handling.
  */
 
+import { readFile } from "node:fs/promises";
+import { basename } from "node:path";
 import type {
   Ad,
   AdAccount,
@@ -258,6 +260,8 @@ export class MetaClient {
       objective: data.objective,
       status: data.status ?? "PAUSED",
       special_ad_categories: data.special_ad_categories ?? [],
+      // Meta can default to bid-cap strategies when omitted; always send explicit safe default.
+      bid_strategy: data.bid_strategy ?? "LOWEST_COST_WITHOUT_CAP",
     };
 
     if (data.special_ad_category_country?.length)
@@ -268,9 +272,6 @@ export class MetaClient {
     }
     if (data.lifetime_budget !== undefined) {
       body["lifetime_budget"] = data.lifetime_budget;
-    }
-    if (data.bid_strategy !== undefined) {
-      body["bid_strategy"] = data.bid_strategy;
     }
     if (data.start_time !== undefined) body["start_time"] = data.start_time;
     if (data.stop_time !== undefined) body["stop_time"] = data.stop_time;
@@ -449,6 +450,7 @@ export class MetaClient {
       bid_amount?: number | undefined;
       bid_strategy?: string | undefined;
       pacing_type?: string | undefined;
+      promoted_object?: object | undefined;
     },
   ): Promise<{ success: boolean }> {
     const body: Record<string, unknown> = {};
@@ -465,6 +467,8 @@ export class MetaClient {
       body["bid_strategy"] = data.bid_strategy;
     if (data.pacing_type !== undefined)
       body["pacing_type"] = JSON.stringify([data.pacing_type]);
+    if (data.promoted_object !== undefined)
+      body["promoted_object"] = JSON.stringify(data.promoted_object);
 
     return this.request<{ success: boolean }>(`/${adsetId}`, {
       method: "POST",
@@ -687,16 +691,122 @@ export class MetaClient {
     accountId: string,
     data: {
       name: string;
-      object_story_spec: object;
+      object_story_spec?: object | undefined;
+      asset_feed_spec?: object | undefined;
+      url_tags?: string | undefined;
+      instagram_actor_id?: string | undefined;
+      degrees_of_freedom_spec?: object | undefined;
+      applink_treatment?: string | undefined;
     },
   ): Promise<{ id: string }> {
+    const body: Record<string, unknown> = { name: data.name };
+
+    if (data.object_story_spec !== undefined) {
+      body["object_story_spec"] = data.object_story_spec;
+    }
+
+    if (data.asset_feed_spec !== undefined) {
+      body["asset_feed_spec"] = data.asset_feed_spec;
+    }
+    if (data.url_tags !== undefined) {
+      body["url_tags"] = data.url_tags;
+    }
+    if (data.instagram_actor_id !== undefined) {
+      body["instagram_actor_id"] = data.instagram_actor_id;
+    }
+    if (data.degrees_of_freedom_spec !== undefined) {
+      body["degrees_of_freedom_spec"] = data.degrees_of_freedom_spec;
+    }
+    if (data.applink_treatment !== undefined) {
+      body["applink_treatment"] = data.applink_treatment;
+    }
+
     return this.request<{ id: string }>(`/${accountId}/adcreatives`, {
       method: "POST",
-      body: {
-        name: data.name,
-        object_story_spec: data.object_story_spec,
-      },
+      body,
     });
+  }
+
+  // ============================================
+  // Ad Images
+  // ============================================
+
+  /**
+   * Upload an ad image and return its hash for use in creatives.
+   */
+  async uploadAdImage(
+    accountId: string,
+    options: { filePath?: string; url?: string },
+  ): Promise<{ image_hash: string; filename: string }> {
+    const { filePath, url } = options;
+    if (!filePath && !url) {
+      throw new Error("Either filePath or url is required");
+    }
+    if (filePath && url) {
+      throw new Error("Provide filePath or url, not both");
+    }
+
+    let base64: string;
+    let filename: string;
+
+    if (filePath) {
+      const buffer = await readFile(filePath);
+      base64 = buffer.toString("base64");
+      filename = basename(filePath);
+    } else {
+      const imageUrl = url;
+      if (!imageUrl) {
+        throw new Error("Either filePath or url is required");
+      }
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status}`);
+      }
+      const buffer = await response.arrayBuffer();
+      base64 = Buffer.from(buffer).toString("base64");
+      const pathname = new URL(imageUrl).pathname;
+      filename =
+        pathname && pathname !== "/" ? basename(pathname) : "image.jpg";
+    }
+
+    const formData = new FormData();
+    formData.append("bytes", base64);
+    formData.append("name", filename);
+
+    const token = await this.getToken();
+    const apiUrl = `${META_API_BASE_URL}/${accountId}/adimages?access_token=${encodeURIComponent(token)}`;
+
+    const uploadResponse = await fetch(apiUrl, {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = (await uploadResponse.json()) as {
+      images?: Record<string, { hash?: string }>;
+      error?: { message: string; code: number };
+    };
+
+    if (!uploadResponse.ok) {
+      throw parseApiError(uploadResponse, data);
+    }
+
+    const images = data.images;
+    if (!images || typeof images !== "object") {
+      throw new Error("Unexpected adimages response: no images object");
+    }
+
+    const entry = Object.entries(images)[0];
+    if (!entry) {
+      throw new Error("Unexpected adimages response: empty images");
+    }
+
+    const [key, meta] = entry;
+    const hash = meta?.hash;
+    if (!hash || typeof hash !== "string") {
+      throw new Error("Unexpected adimages response: no hash");
+    }
+
+    return { image_hash: hash, filename: key };
   }
 
   // ============================================

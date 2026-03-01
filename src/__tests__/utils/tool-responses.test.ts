@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MetaApiError } from "../../api/error-handling.js";
 import {
   createErrorResponse,
   createSuccessResponse,
@@ -41,6 +42,22 @@ describe("createSuccessResponse", () => {
 
     const parsed = JSON.parse(response.content[0]?.text ?? "{}");
     expect(parsed).toEqual({ success: true });
+  });
+
+  it("should add _formatted fields for budget values (cents to dollars)", () => {
+    const response = createSuccessResponse({
+      campaign: {
+        id: "123",
+        daily_budget: "42000",
+        lifetime_budget: 100000,
+      },
+    });
+
+    const parsed = JSON.parse(response.content[0]?.text ?? "{}");
+    expect(parsed.campaign.daily_budget).toBe("42000");
+    expect(parsed.campaign.daily_budget_formatted).toBe("$420.00");
+    expect(parsed.campaign.lifetime_budget).toBe(100000);
+    expect(parsed.campaign.lifetime_budget_formatted).toBe("$1000.00");
   });
 
   it("should return compact list format with header row", () => {
@@ -238,6 +255,38 @@ describe("createErrorResponse", () => {
   it("should format JSON with 2-space indentation", () => {
     const response = createErrorResponse(new Error("test"));
     expect(response.content[0]?.text).toContain("\n");
+  });
+
+  it("should include retry_hint for non-retryable MetaApiError", () => {
+    const error = new MetaApiError({
+      error: {
+        message: "Invalid parameter",
+        type: "OAuthException",
+        code: 100,
+        fbtrace_id: "x",
+      },
+    });
+    const response = createErrorResponse(error);
+    const parsed = JSON.parse(response.content[0]?.text ?? "{}");
+    expect(parsed.error.retry_hint).toContain(
+      "parallel tool calls may have succeeded",
+    );
+  });
+
+  it("should show app dev mode message for error 1885183", () => {
+    const error = new MetaApiError({
+      error: {
+        message:
+          "Ads creative post was created by an app that is in development mode.",
+        type: "OAuthException",
+        code: 1885183,
+        fbtrace_id: "x",
+      },
+    });
+    const response = createErrorResponse(error);
+    const parsed = JSON.parse(response.content[0]?.text ?? "{}");
+    expect(parsed.error.message).toContain("App is in development mode");
+    expect(parsed.error.message).toContain("campaigns and ad sets");
   });
 });
 

@@ -37,6 +37,7 @@ import {
 
 const DEFAULT_CAMPAIGN_COMPARE_IGNORE_FIELDS = [
   "id",
+  "account_id",
   "created_time",
   "updated_time",
   "effective_status",

@@ -1,5 +1,20 @@
 # TODO
 
+## Review Fixes: Duplicate + Overview Follow-ups (2026-03-01)
+- [x] Normalize `pacing_type` in `meta_duplicate_adset` to first valid string from array/string sources
+- [x] Add unique fallback creative naming in `meta_duplicate_ad` to reduce duplicate destination creative names
+- [x] Add `account_id` to default campaign compare ignore fields for consistency with entity compare behavior
+- [x] Add regression tests for duplicate-adset pacing normalization and duplicate-ad fallback creative naming
+- [x] Add explicit test assertion that campaign list calls include `summary=true`
+- [x] Run verification commands (`pnpm test`, `pnpm typecheck`, `pnpm validate:descriptions`)
+
+## Review (Duplicate + Overview Follow-ups)
+- Root-cause/value: review notes highlighted potential type mismatch risk for `pacing_type` arrays and repetitive fallback creative names during cross-account duplication. Updated normalization and naming paths to make inputs robust and creative names less collision-prone, and tightened test coverage around summary/pacing behavior.
+- Validation evidence:
+  - `pnpm test` passed (`13/13` files, `251/251` tests)
+  - `pnpm typecheck` passed
+  - `pnpm validate:descriptions` passed (`Total tools found: 40`)
+
 ## Duplicate + Compare Tools (2026-03-01)
 - [x] Add shared entity comparison utility for normalized nested diffs
 - [x] Add campaign duplicate/compare tools

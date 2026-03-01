@@ -34,6 +34,45 @@ import {
   enhancePagination,
 } from "../utils/tool-responses.js";
 
+export function validateStopTimeBudgetCompatibility(
+  stop_time: string | undefined,
+  budget: {
+    daily_budget?: number | string | undefined;
+    lifetime_budget?: number | string | undefined;
+  },
+): string | null {
+  if (!stop_time) {
+    return null;
+  }
+
+  const hasDailyBudget =
+    budget.daily_budget !== undefined && budget.daily_budget !== null;
+  const hasLifetimeBudget =
+    budget.lifetime_budget !== undefined && budget.lifetime_budget !== null;
+
+  if (hasDailyBudget && !hasLifetimeBudget) {
+    return "stop_time is only honored on lifetime_budget campaigns. For daily_budget campaigns, Meta may ignore stop_time. Use lifetime_budget when scheduling an end date.";
+  }
+
+  return null;
+}
+
+export function validateTimestampTimezone(
+  field: "start_time" | "stop_time",
+  value: string | undefined,
+): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value);
+  if (!hasTimezone) {
+    return `${field} must include a timezone offset (for example +0000 or -0700). Received: "${value}"`;
+  }
+
+  return null;
+}
+
 export function registerCampaignTools(server: McpServer): void {
   /**
    * List campaigns for an ad account
@@ -313,8 +352,8 @@ Args:
   - daily_budget (number, optional): Daily budget in cents (e.g., 1000 = $10.00). Required if lifetime_budget not provided.
   - lifetime_budget (number, optional): Lifetime budget in cents (e.g., 10000 = $100.00). Required if daily_budget not provided.
   - bid_strategy (string, optional): Bid strategy. Options: LOWEST_COST_WITHOUT_CAP (default, recommended), LOWEST_COST_WITH_BID_CAP, COST_CAP, LOWEST_COST_WITH_MIN_ROAS
-  - start_time (string, optional): Campaign start time in ISO 8601 format
-  - stop_time (string, optional): Campaign stop time in ISO 8601 format
+  - start_time (string, optional): Campaign start time in ISO 8601 format with timezone offset (for example "2026-03-01T00:00:00+0000")
+  - stop_time (string, optional): Campaign stop time in ISO 8601 format with timezone offset. Meta only reliably honors stop_time on lifetime_budget campaigns.
   - promoted_object (object, optional): Promoted object for event/app campaigns. Fields: event_id, application_id, pixel_id, custom_event_type, etc.
   - spend_cap (number, optional): Hard cap on total campaign spend in cents (e.g., 50000 = $500). Different from lifetime_budget.
   - special_ad_category_country (array, optional): ISO country codes (e.g. ['US']). Required when special_ad_categories includes HOUSING, EMPLOYMENT, CREDIT, or ISSUES_ELECTIONS_POLITICS.
@@ -384,7 +423,7 @@ Errors:
         .string()
         .optional()
         .describe(
-          "Campaign stop time in ISO 8601 format (e.g., '2026-03-15T23:59:59+0000')",
+          "Campaign stop time in ISO 8601 format (reliable with lifetime_budget campaigns)",
         ),
       promoted_object: promotedObjectSchema,
       spend_cap: z
@@ -416,6 +455,18 @@ Errors:
         },
         { client, format },
       ) => {
+        const startTimeTzErr = validateTimestampTimezone(
+          "start_time",
+          start_time,
+        );
+        if (startTimeTzErr) {
+          return createErrorResponse(new Error(startTimeTzErr), format);
+        }
+        const stopTimeTzErr = validateTimestampTimezone("stop_time", stop_time);
+        if (stopTimeTzErr) {
+          return createErrorResponse(new Error(stopTimeTzErr), format);
+        }
+
         if (daily_budget === undefined && lifetime_budget === undefined) {
           return createErrorResponse(
             new Error(
@@ -423,6 +474,14 @@ Errors:
             ),
             format,
           );
+        }
+
+        const stopTimeErr = validateStopTimeBudgetCompatibility(stop_time, {
+          daily_budget,
+          lifetime_budget,
+        });
+        if (stopTimeErr) {
+          return createErrorResponse(new Error(stopTimeErr), format);
         }
 
         const filteredCategories = special_ad_categories?.filter(
@@ -492,12 +551,12 @@ Modifies an existing campaign's name, status, or budget configuration. All param
 Args:
   - campaign_id (string, required): Campaign ID to update
   - name (string, optional): New campaign name (min 1 character)
-  - status (string, optional): New campaign status - ACTIVE, PAUSED, DELETED, ARCHIVED
+  - status (string, optional): New campaign status - ACTIVE, PAUSED, DELETED, ARCHIVED. To soft-delete a campaign, set status: DELETED.
   - daily_budget (number, optional): New daily budget in cents (e.g., 1000 = $10.00). Cannot be set if lifetime_budget is provided.
   - lifetime_budget (number, optional): New lifetime budget in cents (e.g., 10000 = $100.00). Cannot be set if daily_budget is provided.
   - bid_strategy (string, optional): New bid strategy. Options: LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, LOWEST_COST_WITH_MIN_ROAS
-  - start_time (string, optional): New campaign start time in ISO 8601 format
-  - stop_time (string, optional): New campaign stop time in ISO 8601 format
+  - start_time (string, optional): New campaign start time in ISO 8601 format with timezone offset
+  - stop_time (string, optional): New campaign stop time in ISO 8601 format with timezone offset. Meta only reliably honors stop_time on lifetime_budget campaigns.
   - spend_cap (number, optional): New hard cap on total campaign spend in cents
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
@@ -510,6 +569,7 @@ Returns:
 Examples:
   - Update name: { "campaign_id": "123", "name": "Updated Campaign Name" }
   - Pause campaign: { "campaign_id": "123", "status": "PAUSED" }
+  - Soft-delete campaign: { "campaign_id": "123", "status": "DELETED" }
   - Change budget: { "campaign_id": "123", "daily_budget": 7500 }
 
 Errors:
@@ -539,11 +599,15 @@ Errors:
       start_time: z
         .string()
         .optional()
-        .describe("Campaign start time in ISO 8601 format"),
+        .describe(
+          "Campaign start time in ISO 8601 format with timezone offset (e.g., 2026-03-01T00:00:00+0000)",
+        ),
       stop_time: z
         .string()
         .optional()
-        .describe("Campaign stop time in ISO 8601 format"),
+        .describe(
+          "Campaign stop time in ISO 8601 format (reliable with lifetime_budget campaigns)",
+        ),
       spend_cap: z
         .number()
         .int()
@@ -569,6 +633,55 @@ Errors:
         },
         { client, format },
       ) => {
+        const startTimeTzErr = validateTimestampTimezone(
+          "start_time",
+          start_time,
+        );
+        if (startTimeTzErr) {
+          return createErrorResponse(new Error(startTimeTzErr), format);
+        }
+        const stopTimeTzErr = validateTimestampTimezone("stop_time", stop_time);
+        if (stopTimeTzErr) {
+          return createErrorResponse(new Error(stopTimeTzErr), format);
+        }
+
+        const directStopTimeErr = validateStopTimeBudgetCompatibility(
+          stop_time,
+          {
+            daily_budget,
+            lifetime_budget,
+          },
+        );
+        if (directStopTimeErr) {
+          return createErrorResponse(new Error(directStopTimeErr), format);
+        }
+
+        if (
+          stop_time !== undefined &&
+          lifetime_budget === undefined &&
+          daily_budget === undefined
+        ) {
+          try {
+            const campaign = await client.getCampaignDetails(campaign_id, [
+              "id",
+              "daily_budget",
+              "lifetime_budget",
+            ]);
+            const existingBudgetErr = validateStopTimeBudgetCompatibility(
+              stop_time,
+              {
+                daily_budget: campaign.daily_budget,
+                lifetime_budget: campaign.lifetime_budget,
+              },
+            );
+            if (existingBudgetErr) {
+              return createErrorResponse(new Error(existingBudgetErr), format);
+            }
+          } catch {
+            // Best-effort validation: proceed if budget lookup fails.
+          }
+        }
+
         await client.updateCampaign(campaign_id, {
           name,
           status,
@@ -588,5 +701,47 @@ Errors:
         );
       },
     ),
+  );
+
+  /**
+   * Soft-delete a campaign
+   */
+  server.tool(
+    "meta_delete_campaign",
+    `Soft-delete a campaign by setting its status to DELETED.
+
+Convenience wrapper for meta_update_campaign with status: DELETED. Campaigns are not permanently removed; they can be filtered out of lists.
+
+Args:
+  - campaign_id (string, required): Campaign ID to delete
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')
+
+Returns:
+  {
+    "success": true,
+    "message": "Campaign 123456789 deleted successfully"
+  }
+
+Examples:
+  - Delete campaign: { "campaign_id": "123456789" }
+
+Errors:
+  - 190: Token expired - use meta_get_login_link to re-authenticate
+  - 4/17/32: Rate limited - wait and retry
+  - 10/200/294: Permission denied
+  - 100: Invalid campaign ID`,
+    {
+      campaign_id: z.string().describe("Campaign ID to delete"),
+      user_id: userIdSchema,
+      response_format: responseFormatSchema,
+    },
+    UPDATE_ANNOTATIONS,
+    withToolHandler(async ({ campaign_id }, { client, format }) => {
+      await client.updateCampaign(campaign_id, { status: "DELETED" });
+      return createSuccessResponse(
+        { message: `Campaign ${campaign_id} deleted successfully` },
+        format,
+      );
+    }),
   );
 }

@@ -191,7 +191,7 @@ Args:
   - name (string, required): Ad name (min 1 character)
   - adset_id (string, required): Parent ad set ID
   - creative_id (string, optional): Existing creative ID to use (required if creative not provided)
-  - creative (object, optional): Inline creative specification object with object_story_spec, link_data, etc. (required if creative_id not provided)
+  - creative (object, optional): Inline creative specification. Supported inline path is object_story_spec-based creative only (required if creative_id not provided). For dynamic creative via asset_feed_spec, create the creative first with meta_create_ad_creative and then pass creative_id here.
   - status (string, optional): Initial ad status - ACTIVE or PAUSED (default: PAUSED)
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
@@ -204,7 +204,8 @@ Returns:
 
 Examples:
   - With existing creative: { "account_id": "act_123", "name": "Summer Sale Ad", "adset_id": "987", "creative_id": "111222333" }
-  - With inline creative: { "account_id": "act_123", "name": "New Ad", "adset_id": "987", "creative": { "object_story_spec": { "page_id": "123456", "link_data": { "message": "Check out our sale!", "link": "https://example.com" } } } }
+  - With inline object_story_spec creative: { "account_id": "act_123", "name": "New Ad", "adset_id": "987", "creative": { "object_story_spec": { "page_id": "123456", "link_data": { "message": "Check out our sale!", "link": "https://example.com" } } } }
+  - Dynamic creative flow: 1) call meta_create_ad_creative with asset_feed_spec, 2) call meta_create_ad with returned creative_id
 
 Errors:
   - 190: Token expired - use meta_get_login_link to re-authenticate

@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MetaClient } from "../../api/meta-client.js";
+import { getDefaultTokenStore } from "../../api/token-store.js";
 import { registerCompositeTools } from "../../tools/composite.js";
 import { createMockResponse } from "../utils/mock-fetch.js";
 
@@ -8,12 +9,17 @@ const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 vi.spyOn(console, "error").mockImplementation(() => {});
 
+function parseToolResponseText(response: { content: Array<{ text: string }> }) {
+  return JSON.parse(response.content[0]?.text ?? "{}");
+}
+
 describe("Composite Tools", () => {
   beforeEach(() => {
     mockFetch.mockReset();
   });
 
   afterEach(() => {
+    getDefaultTokenStore().deleteToken("verify-test");
     vi.restoreAllMocks();
   });
 
@@ -22,11 +28,173 @@ describe("Composite Tools", () => {
       const tool = vi.fn();
       registerCompositeTools({ tool } as unknown as McpServer);
 
-      expect(tool).toHaveBeenCalledTimes(4);
+      expect(tool).toHaveBeenCalledTimes(6);
       expect(tool.mock.calls[0]?.[0]).toBe("meta_get_campaign_summary");
       expect(tool.mock.calls[1]?.[0]).toBe("meta_get_account_overview");
       expect(tool.mock.calls[2]?.[0]).toBe("meta_search_ads");
       expect(tool.mock.calls[3]?.[0]).toBe("meta_validate_campaign_config");
+      expect(tool.mock.calls[4]?.[0]).toBe("meta_verify_campaign_structure");
+      expect(tool.mock.calls[5]?.[0]).toBe("meta_generate_budget_phase_plan");
+    });
+  });
+
+  describe("meta_verify_campaign_structure", () => {
+    it("reports verification details and issue counts", async () => {
+      const tool = vi.fn();
+      registerCompositeTools({ tool } as unknown as McpServer);
+
+      const verifyHandler = tool.mock.calls[4]?.[4] as (
+        args: Record<string, unknown>,
+        extra: unknown,
+      ) => Promise<{ content: Array<{ text: string }> }>;
+
+      mockFetch
+        .mockResolvedValueOnce(
+          createMockResponse({
+            body: {
+              id: "camp_1",
+              name: "Campaign 1",
+              effective_status: "ACTIVE",
+              bid_strategy: "LOWEST_COST_WITHOUT_CAP",
+              daily_budget: "5000",
+            },
+          }),
+        )
+        .mockResolvedValueOnce(
+          createMockResponse({
+            body: {
+              data: [
+                {
+                  id: "as_1",
+                  effective_status: "ACTIVE",
+                  destination_type: "WEBSITE",
+                  targeting: { geo_locations: { countries: ["US"] } },
+                },
+              ],
+            },
+          }),
+        )
+        .mockResolvedValueOnce(
+          createMockResponse({
+            body: {
+              data: [{ id: "ad_1", effective_status: "ACTIVE" }],
+            },
+          }),
+        );
+
+      const now = Math.floor(Date.now() / 1000);
+      getDefaultTokenStore().saveToken({
+        userId: "verify-test",
+        accessToken: "test-token",
+        tokenType: "Bearer",
+        expiresAt: now + 3600,
+        scopes: ["ads_read", "ads_management"],
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const response = await verifyHandler(
+        {
+          campaign_ids: ["camp_1"],
+          account_id: "act_123",
+          user_id: "verify-test",
+        },
+        {},
+      );
+
+      const parsed = parseToolResponseText(response);
+      expect(parsed.verification.campaigns_checked).toBe(1);
+      expect(parsed.verification.valid_campaigns).toBe(1);
+      expect(parsed.verification.reports[0]?.campaign_id).toBe("camp_1");
+      expect(parsed.verification.reports[0]?.issues).toEqual([]);
+    });
+  });
+
+  describe("meta_generate_budget_phase_plan", () => {
+    it("returns dated update call payloads for phase transitions", async () => {
+      const tool = vi.fn();
+      registerCompositeTools({ tool } as unknown as McpServer);
+
+      const planHandler = tool.mock.calls[5]?.[4] as (
+        args: Record<string, unknown>,
+        extra: unknown,
+      ) => Promise<{ content: Array<{ text: string }> }>;
+
+      const response = await planHandler(
+        {
+          account_id: "act_123",
+          validate_live: false,
+          phases: [
+            {
+              phase: "Phase 1",
+              effective_date: "2026-03-10",
+              updates: [{ campaign_id: "camp_1", daily_budget: 5000 }],
+            },
+            {
+              phase: "Phase 2",
+              effective_date: "2026-03-17",
+              updates: [{ campaign_id: "camp_1", daily_budget: 30000 }],
+            },
+          ],
+        },
+        {},
+      );
+
+      const parsed = parseToolResponseText(response);
+      expect(parsed.phase_plan.account_id).toBe("act_123");
+      expect(parsed.phase_plan.generated_calls).toBe(2);
+      expect(parsed.phase_plan.execution_timezone_note).toContain(
+        "ad account timezone",
+      );
+      expect(parsed.phase_plan.calls[0]?.tool).toBe("meta_update_campaign");
+      expect(parsed.phase_plan.calls[0]?.args?.campaign_id).toBe("camp_1");
+      expect(parsed.phase_plan.calls[0]?.args?.daily_budget).toBe(5000);
+      expect(parsed.phase_plan.calls[1]?.effective_date).toBe("2026-03-17");
+    });
+
+    it("can execute generated update calls when execute_now is true", async () => {
+      const tool = vi.fn();
+      registerCompositeTools({ tool } as unknown as McpServer);
+
+      const planHandler = tool.mock.calls[5]?.[4] as (
+        args: Record<string, unknown>,
+        extra: unknown,
+      ) => Promise<{ content: Array<{ text: string }> }>;
+
+      const updateCampaignSpy = vi
+        .spyOn(MetaClient.prototype, "updateCampaign")
+        .mockResolvedValue({ success: true });
+
+      try {
+        const response = await planHandler(
+          {
+            account_id: "act_123",
+            validate_live: false,
+            execute_now: true,
+            phases: [
+              {
+                phase: "Phase 1",
+                effective_date: "2026-03-10",
+                updates: [{ campaign_id: "camp_1", daily_budget: 5000 }],
+              },
+              {
+                phase: "Phase 2",
+                effective_date: "2026-03-17",
+                updates: [{ campaign_id: "camp_2", daily_budget: 7000 }],
+              },
+            ],
+          },
+          {},
+        );
+
+        const parsed = parseToolResponseText(response);
+        expect(updateCampaignSpy).toHaveBeenCalledTimes(2);
+        expect(parsed.phase_plan.execution.requested).toBe(2);
+        expect(parsed.phase_plan.execution.succeeded).toBe(2);
+        expect(parsed.phase_plan.execution.failed).toBe(0);
+      } finally {
+        updateCampaignSpy.mockRestore();
+      }
     });
   });
 

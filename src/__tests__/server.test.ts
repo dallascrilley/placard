@@ -49,9 +49,12 @@ describe("createServer", () => {
         "get_login_link",
         "check_auth_status",
         "logout",
-        // Accounts (2)
+        // Accounts (5)
         "get_ad_accounts",
         "get_account_info",
+        "get_custom_audiences",
+        "create_custom_audience",
+        "create_lookalike_audience",
         // Campaigns (6)
         "get_campaigns",
         "get_campaign_copy",
@@ -82,15 +85,19 @@ describe("createServer", () => {
         "get_campaign_insights",
         "get_adset_insights",
         "get_ad_insights",
-        // Composite (4)
+        // Composite (6)
         "get_campaign_summary",
         "get_account_overview",
         "search_ads",
         "validate_campaign_config",
+        "verify_campaign_structure",
+        "generate_budget_phase_plan",
+        // Batch (1)
+        "create_campaign_from_config",
       ];
 
-      // Verify tool count: 1+3+2+6+4+4+2+1+2+4+4 = 33
-      expect(expectedTools.length).toBe(33);
+      // Verify tool count: 1+3+5+6+4+4+2+1+2+4+6+1 = 39
+      expect(expectedTools.length).toBe(39);
 
       // Server should create without errors (tools registered internally)
       const server = createServer();

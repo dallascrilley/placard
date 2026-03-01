@@ -74,12 +74,16 @@ export function validateGeoRadius(
 export function validatePromotedObjectConstraints(
   optimization_goal: string,
   promoted_object: Record<string, unknown> | undefined,
-): string | null {
+): { field: string; message: string } | null {
   if (
     optimization_goal === "EVENT_RESPONSES" &&
     promoted_object?.["event_id"]
   ) {
-    return "EVENT_RESPONSES optimization does not support promoted_object.event_id. Event linking goes in the ad creative link_data URL, not the ad set.";
+    return {
+      field: "promoted_object.event_id",
+      message:
+        "EVENT_RESPONSES optimization does not support promoted_object.event_id. Event linking goes in the ad creative link_data URL, not the ad set.",
+    };
   }
   return null;
 }
@@ -459,9 +463,7 @@ Errors:
           optimization_goal,
           promoted_object as Record<string, unknown> | undefined,
         );
-        if (promotedErr) {
-          return createErrorResponse(new Error(promotedErr), format);
-        }
+        const warnings = promotedErr ? [promotedErr] : [];
 
         const result = await client.createAdSet(normalizedId, {
           name,
@@ -486,6 +488,7 @@ Errors:
           {
             adset_id: result.id,
             message: `Ad set "${name}" created successfully`,
+            warnings,
           },
           format,
         );

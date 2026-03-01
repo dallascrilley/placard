@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { HEALTH_CHECK_ANNOTATIONS } from "./constants/index.js";
 import { registerAccountTools } from "./tools/accounts.js";
+import { registerAdImageTools } from "./tools/ad-images.js";
 import { registerAdTools } from "./tools/ads.js";
 import { registerAdSetTools } from "./tools/adsets.js";
 import { registerAuthTools } from "./tools/auth.js";
@@ -84,6 +85,9 @@ Errors:
 
   // Creative tools (get_ad_creatives, create_ad_creative)
   registerCreativeTools(server);
+
+  // Ad image tools (upload_image)
+  registerAdImageTools(server);
 
   // Targeting tools (search_targeting, get_reach_estimate)
   registerTargetingTools(server);

@@ -24,6 +24,7 @@ const creativeSpecSchema = z
     message: z.string().optional(),
     title: z.string().optional(),
     description: z.string().optional(),
+    event_id: z.string().min(1).optional(),
     call_to_action_type: z.string().optional(),
     image_hash: z.string().min(1).optional(),
     image_key: z
@@ -114,7 +115,9 @@ export const batchCampaignConfigSchema = z
     creatives: z
       .array(sharedCreativeSchema)
       .optional()
-      .describe("Alias for shared_creatives (preferred in show-level configs)"),
+      .describe(
+        "Deprecated alias for shared_creatives. Prefer shared_creatives as the canonical field.",
+      ),
     shared_creatives: z.array(sharedCreativeSchema).optional(),
     campaigns: z.array(campaignSchema).min(1).max(10),
   })

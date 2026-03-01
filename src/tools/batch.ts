@@ -314,7 +314,7 @@ function validateCreativeImageKey(
     return;
   }
 
-  if (creative.page_id && creative.link) {
+  if (creative.page_id && (creative.link || creative.event_id)) {
     return;
   }
 
@@ -345,6 +345,7 @@ function usesCopyTemplate(creative: CreativeInput): boolean {
   return (
     creative.page_id !== undefined ||
     creative.link !== undefined ||
+    creative.event_id !== undefined ||
     creative.message !== undefined ||
     creative.title !== undefined ||
     creative.description !== undefined ||
@@ -369,15 +370,19 @@ function buildObjectStorySpecFromTemplate(
   creative: CreativeInput,
   imageHash: string | undefined,
 ): Record<string, unknown> {
-  if (!creative.page_id || !creative.link) {
+  if (!creative.page_id || (!creative.link && !creative.event_id)) {
     throw new Error(
-      "Copy-template creatives require both page_id and link when object_story_spec is not provided.",
+      "Copy-template creatives require page_id and at least one of link or event_id when object_story_spec is not provided.",
     );
   }
 
-  const linkData: Record<string, unknown> = {
-    link: creative.link,
-  };
+  const linkData: Record<string, unknown> = {};
+  if (creative.link) {
+    linkData["link"] = creative.link;
+  }
+  if (creative.event_id) {
+    linkData["event_id"] = creative.event_id;
+  }
   if (creative.message) {
     linkData["message"] = creative.message;
   }
@@ -388,6 +393,11 @@ function buildObjectStorySpecFromTemplate(
     linkData["description"] = creative.description;
   }
   if (creative.call_to_action_type) {
+    if (!creative.link) {
+      throw new Error(
+        "call_to_action_type requires link when using copy-template creative fields.",
+      );
+    }
     linkData["call_to_action"] = {
       type: creative.call_to_action_type,
       value: { link: creative.link },
@@ -591,6 +601,17 @@ function validateAdSet(
     );
   }
 
+  if (
+    adSet.optimization_goal === "EVENT_RESPONSES" &&
+    adSet.destination_type !== "ON_EVENT"
+  ) {
+    addWarning(
+      warnings,
+      `${adSetPath}.destination_type`,
+      "EVENT_RESPONSES ad sets should set destination_type to ON_EVENT.",
+    );
+  }
+
   const cboError = validateCboBudgetConstraint(
     campaignBudget,
     createAdSetBudgetForCbo(adSet),
@@ -711,6 +732,13 @@ export function validateConfig(
       "Provide either creatives or shared_creatives, not both.",
     );
   }
+  if (config.creatives && !config.shared_creatives) {
+    addWarning(
+      warnings,
+      "creatives",
+      "creatives is deprecated; prefer shared_creatives as the canonical field.",
+    );
+  }
 
   const sharedRefCounts = new Map<string, number>();
   for (const [index, sharedCreative] of sharedCreatives.entries()) {
@@ -817,18 +845,14 @@ export async function executeBatch(
     created.push(creative);
   };
 
-  const sharedResults: PromiseSettledResult<{ id: string }>[] = [];
-  for (const creative of sharedCreatives) {
-    try {
-      const result = await client.createAdCreative(
+  const sharedResults = await Promise.allSettled(
+    sharedCreatives.map((creative) =>
+      client.createAdCreative(
         accountId,
         resolveCreativeForCreate(creative, imageHashes),
-      );
-      sharedResults.push({ status: "fulfilled", value: result });
-    } catch (error) {
-      sharedResults.push({ status: "rejected", reason: error });
-    }
-  }
+      ),
+    ),
+  );
 
   for (const [index, result] of sharedResults.entries()) {
     if (result.status === "fulfilled") {
@@ -859,13 +883,12 @@ export async function executeBatch(
     };
   }
 
-  const campaignResults: PromiseSettledResult<{ id: string }>[] = [];
-  for (const campaign of config.campaigns) {
-    const filteredCategories = campaign.special_ad_categories?.filter(
-      (category) => category !== "NONE",
-    );
-    try {
-      const result = await client.createCampaign(accountId, {
+  const campaignResults = await Promise.allSettled(
+    config.campaigns.map((campaign) => {
+      const filteredCategories = campaign.special_ad_categories?.filter(
+        (category) => category !== "NONE",
+      );
+      return client.createCampaign(accountId, {
         name: campaign.name,
         objective: campaign.objective,
         status: campaign.status ?? "PAUSED",
@@ -879,11 +902,8 @@ export async function executeBatch(
         promoted_object: campaign.promoted_object,
         spend_cap: campaign.spend_cap,
       });
-      campaignResults.push({ status: "fulfilled", value: result });
-    } catch (error) {
-      campaignResults.push({ status: "rejected", reason: error });
-    }
-  }
+    }),
+  );
 
   const campaignIdByIndex = new Map<number, string>();
   for (const [index, result] of campaignResults.entries()) {
@@ -932,10 +952,9 @@ export async function executeBatch(
     })),
   );
 
-  const adSetResults: PromiseSettledResult<{ id: string }>[] = [];
-  for (const job of adSetJobs) {
-    try {
-      const result = await client.createAdSet(accountId, {
+  const adSetResults = await Promise.allSettled(
+    adSetJobs.map((job) =>
+      client.createAdSet(accountId, {
         name: job.adSet.name,
         campaign_id: job.campaignId,
         optimization_goal: job.adSet.optimization_goal,
@@ -952,12 +971,9 @@ export async function executeBatch(
         destination_type: job.adSet.destination_type,
         is_dynamic_creative: job.adSet.is_dynamic_creative,
         pacing_type: job.adSet.pacing_type,
-      });
-      adSetResults.push({ status: "fulfilled", value: result });
-    } catch (error) {
-      adSetResults.push({ status: "rejected", reason: error });
-    }
-  }
+      }),
+    ),
+  );
 
   const adSetIdByKey = new Map<string, string>();
   for (const [index, result] of adSetResults.entries()) {
@@ -1017,9 +1033,8 @@ export async function executeBatch(
     inlineCreativeId?: string | undefined;
     inlineCreativeName?: string | undefined;
   };
-  const adResults: PromiseSettledResult<AdJobResult>[] = [];
-  for (const job of adJobs) {
-    try {
+  const adResults = await Promise.allSettled(
+    adJobs.map(async (job): Promise<AdJobResult> => {
       let creativeId = job.ad.creative_id;
 
       if (!creativeId && job.ad.creative_ref) {
@@ -1071,20 +1086,15 @@ export async function executeBatch(
         );
       }
 
-      adResults.push({
-        status: "fulfilled",
-        value: {
-          adId: adResult.id,
-          adName: job.ad.name,
-          adSetId: job.adSetId,
-          inlineCreativeId: inlineCreativeResult?.id,
-          inlineCreativeName: job.ad.creative?.name,
-        },
-      });
-    } catch (error) {
-      adResults.push({ status: "rejected", reason: error });
-    }
-  }
+      return {
+        adId: adResult.id,
+        adName: job.ad.name,
+        adSetId: job.adSetId,
+        inlineCreativeId: inlineCreativeResult?.id,
+        inlineCreativeName: job.ad.creative?.name,
+      };
+    }),
+  );
 
   for (const result of adResults) {
     if (result.status === "fulfilled") {

@@ -200,6 +200,11 @@ describe("batch config validation", () => {
 
     const result = validateConfig(config);
     expect(result.valid).toBe(true);
+    expect(
+      result.warnings.some((warning) =>
+        warning.message.includes("creatives is deprecated"),
+      ),
+    ).toBe(true);
   });
 
   it("rejects when creatives and shared_creatives are both provided", () => {
@@ -277,6 +282,46 @@ describe("batch config validation", () => {
     ).toBe(true);
   });
 
+  it("emits destination_type warning for EVENT_RESPONSES when ON_EVENT is missing", () => {
+    const config = buildValidConfig();
+    const adSet = requireAdSet(config);
+    requireCampaign(config).ad_sets[0] = {
+      ...adSet,
+      optimization_goal: "EVENT_RESPONSES",
+      destination_type: "MESSENGER",
+    };
+
+    const result = validateConfig(config);
+    expect(result.valid).toBe(true);
+    expect(
+      result.warnings.some(
+        (warning) =>
+          warning.path.includes("destination_type") &&
+          warning.message.includes("ON_EVENT"),
+      ),
+    ).toBe(true);
+  });
+
+  it("emits destination_type warning for EVENT_RESPONSES when destination_type is omitted", () => {
+    const config = buildValidConfig();
+    const adSet = requireAdSet(config);
+    requireCampaign(config).ad_sets[0] = {
+      ...adSet,
+      optimization_goal: "EVENT_RESPONSES",
+      destination_type: undefined,
+    };
+
+    const result = validateConfig(config);
+    expect(result.valid).toBe(true);
+    expect(
+      result.warnings.some(
+        (warning) =>
+          warning.path.includes("destination_type") &&
+          warning.message.includes("ON_EVENT"),
+      ),
+    ).toBe(true);
+  });
+
   it("rejects unknown image_key references", () => {
     const config = buildValidConfig();
     config.image_hashes = { hero_image: "hash_123" };
@@ -317,7 +362,7 @@ describe("batch config validation", () => {
     expect(
       result.errors.some((error) =>
         error.message.includes(
-          "require both page_id and link when object_story_spec is not provided",
+          "require page_id and at least one of link or event_id",
         ),
       ),
     ).toBe(true);
@@ -717,5 +762,113 @@ describe("executeBatch", () => {
     expect(payload.object_story_spec?.link_data?.image_hash).toBe(
       "hash_hero_template",
     );
+  });
+
+  it("builds object_story_spec with event_id from shorthand template", async () => {
+    const config: BatchCampaignConfig = {
+      creatives: [
+        {
+          ref: "event-template",
+          name: "Event Template",
+          page_id: "123",
+          event_id: "evt_456",
+          message: "RSVP now",
+        },
+      ],
+      campaigns: [
+        {
+          name: "Campaign Event",
+          objective: "OUTCOME_ENGAGEMENT",
+          daily_budget: 5000,
+          ad_sets: [
+            {
+              name: "Ad Set Event",
+              optimization_goal: "EVENT_RESPONSES",
+              billing_event: "IMPRESSIONS",
+              destination_type: "ON_EVENT",
+              targeting: {
+                geo_locations: { countries: ["US"] },
+                age_min: 25,
+                age_max: 65,
+              },
+              ads: [{ name: "Ad Event", creative_ref: "event-template" }],
+            },
+          ],
+        },
+      ],
+    };
+
+    const createAdCreative = vi.fn().mockResolvedValue({ id: "cr_1" });
+    const client = {
+      createAdCreative,
+      createCampaign: vi.fn().mockResolvedValue({ id: "camp_1" }),
+      createAdSet: vi.fn().mockResolvedValue({ id: "adset_1" }),
+      createAd: vi.fn().mockResolvedValue({ id: "ad_1" }),
+    } as unknown as MetaClient;
+
+    const result = await executeBatch(client, "act_123", config);
+    expect(result.completed).toBe(true);
+
+    const payload = createAdCreative.mock.calls[0]?.[1] as {
+      object_story_spec?: {
+        link_data?: { event_id?: string; message?: string };
+      };
+    };
+    expect(payload.object_story_spec?.link_data?.event_id).toBe("evt_456");
+    expect(payload.object_story_spec?.link_data?.message).toBe("RSVP now");
+  });
+
+  it("creates campaigns in parallel within the campaign tier", async () => {
+    const config = buildValidConfig();
+    config.campaigns.push({
+      name: "Campaign B",
+      objective: "OUTCOME_TRAFFIC",
+      daily_budget: 7000,
+      ad_sets: [
+        {
+          name: "Ad Set B",
+          optimization_goal: "LINK_CLICKS",
+          billing_event: "IMPRESSIONS",
+          targeting: {
+            geo_locations: { countries: ["US"] },
+            age_min: 25,
+            age_max: 65,
+          },
+          ads: [{ name: "Ad B", creative_ref: "hero" }],
+        },
+      ],
+    });
+
+    let resolveFirstCampaign: ((value: { id: string }) => void) | undefined;
+    const firstCampaignPromise = new Promise<{ id: string }>((resolve) => {
+      resolveFirstCampaign = resolve;
+    });
+
+    const createCampaign = vi
+      .fn()
+      .mockReturnValueOnce(firstCampaignPromise)
+      .mockResolvedValueOnce({ id: "camp_2" });
+    const client = {
+      createAdCreative: vi.fn().mockResolvedValue({ id: "cr_1" }),
+      createCampaign,
+      createAdSet: vi
+        .fn()
+        .mockResolvedValueOnce({ id: "adset_1" })
+        .mockResolvedValueOnce({ id: "adset_2" }),
+      createAd: vi
+        .fn()
+        .mockResolvedValueOnce({ id: "ad_1" })
+        .mockResolvedValueOnce({ id: "ad_2" }),
+    } as unknown as MetaClient;
+
+    const executionPromise = executeBatch(client, "act_123", config);
+
+    await vi.waitFor(() => {
+      expect(createCampaign).toHaveBeenCalledTimes(2);
+    });
+
+    resolveFirstCampaign?.({ id: "camp_1" });
+    const result = await executionPromise;
+    expect(result.completed).toBe(true);
   });
 });

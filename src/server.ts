@@ -1,9 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { HEALTH_CHECK_ANNOTATIONS } from "./constants/index.js";
 import { registerAccountTools } from "./tools/accounts.js";
+import { registerAdImageTools } from "./tools/ad-images.js";
 import { registerAdTools } from "./tools/ads.js";
 import { registerAdSetTools } from "./tools/adsets.js";
 import { registerAuthTools } from "./tools/auth.js";
+import { registerBatchTools } from "./tools/batch.js";
 import { registerCampaignTools } from "./tools/campaigns.js";
 import { registerCompositeTools } from "./tools/composite.js";
 import { registerCreativeTools } from "./tools/creatives.js";
@@ -85,6 +87,9 @@ Errors:
   // Creative tools (get_ad_creatives, create_ad_creative)
   registerCreativeTools(server);
 
+  // Ad image tools (upload_image)
+  registerAdImageTools(server);
+
   // Targeting tools (search_targeting, get_reach_estimate)
   registerTargetingTools(server);
 
@@ -93,6 +98,9 @@ Errors:
 
   // Composite tools (campaign_summary, account_overview, search_ads, validate_campaign_config)
   registerCompositeTools(server);
+
+  // Batch tools (campaign hierarchy create from config)
+  registerBatchTools(server);
 
   return server;
 }

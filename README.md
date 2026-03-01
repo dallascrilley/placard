@@ -166,23 +166,29 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 
 ## Available Tools
 
-### Authentication (4 tools)
+### Tool Summary
+
+**Total: 47 tools** across 11 categories
+
+### Authentication (3 tools)
 
 | Tool | Description |
 |------|-------------|
 | `meta_get_login_link` | Initiate OAuth flow, get authorization URL |
-| `meta_complete_auth` | Exchange authorization code for access token |
 | `meta_check_auth_status` | Verify current authentication status |
 | `meta_logout` | Revoke access token |
 
-### Account Management (2 tools)
+### Account Management (5 tools)
 
 | Tool | Description |
 |------|-------------|
 | `meta_get_ad_accounts` | List accessible ad accounts |
 | `meta_get_account_info` | Get detailed account information |
+| `meta_get_custom_audiences` | List custom audiences for an ad account |
+| `meta_create_custom_audience` | Create a custom audience |
+| `meta_create_lookalike_audience` | Create a lookalike audience from a source audience |
 
-### Campaigns (7 tools)
+### Campaigns (8 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -191,8 +197,9 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 | `meta_get_campaign_details` | Get campaign details |
 | `meta_duplicate_campaign` | Duplicate a campaign into a target account |
 | `meta_compare_campaigns` | Compare two campaigns field-by-field |
-| `meta_create_campaign` | Create new campaign |
+| `meta_create_campaign` | Create new campaign (supports spend_cap, special_ad_category_country, promoted_object) |
 | `meta_update_campaign` | Update campaign settings |
+| `meta_delete_campaign` | Soft-delete a campaign |
 
 ### Ad Sets (7 tools)
 
@@ -202,8 +209,8 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 | `meta_get_adset_details` | Get ad set details |
 | `meta_duplicate_adset` | Duplicate an ad set into a target campaign |
 | `meta_compare_adsets` | Compare two ad sets field-by-field |
-| `meta_create_adset` | Create new ad set |
-| `meta_update_adset` | Update ad set settings |
+| `meta_create_adset` | Create new ad set (supports destination_type, is_dynamic_creative, pacing_type, enhanced validation) |
+| `meta_update_adset` | Update ad set settings (supports pacing_type, promoted_object) |
 | `meta_delete_adset` | Soft-delete an ad set |
 
 ### Ads (7 tools)
@@ -217,16 +224,6 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 | `meta_create_ad` | Create new ad |
 | `meta_update_ad` | Update ad settings |
 | `meta_delete_ad` | Soft-delete an ad |
-
-### Composite Workflows (5 tools)
-
-| Tool | Description |
-|------|-------------|
-| `meta_get_campaign_summary` | Get campaign + ad sets + ads snapshot in one call |
-| `meta_get_account_overview` | Get account-level overview and campaign status rollup |
-| `meta_search_ads` | Search ads by keyword across creative text |
-| `meta_validate_campaign_config` | Validate campaign config without creating entities |
-| `meta_compare_campaign_trees` | Compare full campaign trees (campaign + ad sets + ads) |
 
 ### Creatives (2 tools)
 
@@ -246,11 +243,54 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 | `meta_get_adset_insights` | Ad set-level metrics |
 | `meta_get_ad_insights` | Ad-level metrics |
 
+### Composite Workflows (7 tools)
+
+| Tool | Description |
+|------|-------------|
+| `meta_get_campaign_summary` | Get campaign, ad sets, and ads in one call |
+| `meta_get_account_overview` | Get account summary with optional insights |
+| `meta_search_ads` | Search ad creative text by keyword |
+| `meta_validate_campaign_config` | Validate campaign config pre-flight checks |
+| `meta_compare_campaign_trees` | Compare full campaign trees (campaign + ad sets + ads) |
+| `meta_verify_campaign_structure` | Verify live campaign/ad set/ad structure and key fields |
+| `meta_generate_budget_phase_plan` | Generate dated `meta_update_campaign` calls for budget phase transitions (optionally execute immediately) |
+
+### Batch Workflows (1 tool)
+
+| Tool | Description |
+|------|-------------|
+| `meta_create_campaign_from_config` | Create campaign hierarchy (creatives, campaigns, ad sets, ads) from one config payload or `config_path` |
+
 ### System (1 tool)
 
 | Tool | Description |
 |------|-------------|
 | `meta_health_check` | Verify server and API connectivity |
+
+## Important Constraints & Validations
+
+### Advantage+ Audience
+- When using Advantage+ audience (`targeting.targeting_automation.advantage_audience = 1` or omitted), `age_max` must be **65**
+- For restrictive age targeting (age_max < 65), set `targeting_automation.advantage_audience = 0`
+
+### Geographic Targeting Radius Limits
+- **Cities** (`geo_locations.cities`): 10–50 miles (17–80 km)
+- **Custom locations** (`geo_locations.custom_locations`): 0.63–50 miles (1–80 km)
+
+### Special Ad Categories
+- When using `HOUSING`, `EMPLOYMENT`, `CREDIT`, or `ISSUES_ELECTIONS_POLITICS`, you **must** provide `special_ad_category_country` (array of ISO country codes, e.g., `['US']`)
+
+### Promoted Object Constraints
+- `EVENT_RESPONSES` optimization goal does **not** support `promoted_object.event_id`
+- The server reports this as a warning (does not block ad-set creation)
+- Event linking for Event Response campaigns should go in ad creative `link_data` URL, not the ad set
+- For `EVENT_RESPONSES`, set `destination_type` to `ON_EVENT` (batch validation warns when missing/mismatched)
+
+### Campaign Budget Optimization (CBO)
+- If a campaign uses CBO (budget set at campaign level), ad sets must **not** have their own `daily_budget` or `lifetime_budget`
+
+### Audience Creation
+- `meta_create_custom_audience` and `meta_create_lookalike_audience` delegate to the Meta Marketing API; repeated calls with identical params create duplicates. Check for existing audiences by name before creating if you need idempotent behavior.
 
 ## Field Defaults
 
@@ -258,6 +298,19 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 - Use the `fields` parameter to request full creative expansion when needed.
 - `meta_get_ad_details` supports nested field expansion passthrough (for example: `creative{id,body,title}`).
 - List tools support `response_format: "compact"` for token-efficient tabular output (`[headers, ...rows]`).
+- `meta_create_campaign_from_config` supports:
+  - `config_path` for file-based execution
+  - `config_path` is restricted to files under the MCP server process working directory
+  - `shared_creatives` (canonical) and backward-compatible `creatives` alias (deprecated)
+  - copy-template creative fields (`page_id`, `link`, `event_id`, `message`, `title`, `call_to_action_type`, `image_hash`/`image_key`)
+  - `meta_generate_budget_phase_plan` supports `execute_now: true` to apply generated updates immediately
+
+## Documentation
+
+- **[Parameter Reference](docs/PARAMETERS.md)** - Detailed parameter documentation with examples
+- **[Batch Workflow](docs/BATCH.md)** - Execution order, rollback hints, dry-run scope, validation semantics
+- **[Runbooks](docs/runbooks/)** - Operational guides for deployment and OAuth setup
+- **[CHANGELOG](CHANGELOG.md)** - Version history and feature updates
 
 ## Development
 

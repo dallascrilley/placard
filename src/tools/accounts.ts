@@ -5,11 +5,16 @@
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { READ_ONLY_ANNOTATIONS } from "../constants/index.js";
+import { z } from "zod";
+import {
+  CREATE_ANNOTATIONS,
+  READ_ONLY_ANNOTATIONS,
+} from "../constants/index.js";
 import {
   accountIdSchema,
   createLimitSchema,
   fieldsSchema,
+  paginationCursorSchema,
   responseFormatSchema,
   userIdSchema,
 } from "../schemas/index.js";
@@ -145,5 +150,174 @@ Errors:
 
       return createSuccessResponse({ account }, format);
     }),
+  );
+
+  server.tool(
+    "meta_get_custom_audiences",
+    `List custom audiences for an ad account.
+
+Retrieves custom audiences (including lookalike sources and uploaded audiences) for a Meta ad account. Supports pagination and field selection.
+
+Args:
+  - account_id (string, required): Ad account ID (with or without 'act_' prefix)
+  - limit (number, optional): Maximum audiences to return, 1-100 (default: 25)
+  - after (string, optional): Pagination cursor to fetch the next page
+  - before (string, optional): Pagination cursor to fetch the previous page
+  - fields (array[string], optional): Specific audience fields to return
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')`,
+    {
+      account_id: accountIdSchema,
+      limit: createLimitSchema("custom audiences"),
+      after: paginationCursorSchema,
+      before: paginationCursorSchema,
+      fields: fieldsSchema,
+      user_id: userIdSchema,
+      response_format: responseFormatSchema,
+    },
+    READ_ONLY_ANNOTATIONS,
+    withToolHandler(
+      async (
+        { account_id, limit, after, before, fields },
+        { client, format },
+      ) => {
+        const normalizedId = normalizeAccountId(account_id);
+        const response = await client.getCustomAudiences(normalizedId, {
+          limit: limit ?? 25,
+          after,
+          before,
+          fields,
+        });
+
+        return createSuccessResponse(
+          {
+            audiences: response.data,
+            paging: enhancePagination(response.paging, response.data, {
+              totalCount: response.summary?.total_count,
+              limit: limit ?? 25,
+              cursorProvided: !!after || !!before,
+            }),
+          },
+          format,
+        );
+      },
+    ),
+  );
+
+  server.tool(
+    "meta_create_custom_audience",
+    `Create a custom audience in an ad account.
+
+Creates a custom audience resource (for example customer list or website audience). Returns the new audience ID.
+
+Args:
+  - account_id (string, required): Ad account ID (with or without 'act_' prefix)
+  - name (string, required): Audience name
+  - subtype (string, optional): Audience subtype (default: CUSTOM)
+  - description (string, optional): Audience description
+  - customer_file_source (string, optional): Customer data source metadata
+  - rule (object, optional): Audience rule object (commonly used for website audiences)
+  - retention_days (number, optional): Retention window in days
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')`,
+    {
+      account_id: accountIdSchema,
+      name: z.string().min(1).describe("Audience name"),
+      subtype: z.string().optional().describe("Audience subtype"),
+      description: z.string().optional().describe("Audience description"),
+      customer_file_source: z
+        .string()
+        .optional()
+        .describe("Customer file source metadata"),
+      rule: z.record(z.unknown()).optional().describe("Audience rule object"),
+      retention_days: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe("Retention window in days"),
+      user_id: userIdSchema,
+      response_format: responseFormatSchema,
+    },
+    CREATE_ANNOTATIONS,
+    withToolHandler(
+      async (
+        {
+          account_id,
+          name,
+          subtype,
+          description,
+          customer_file_source,
+          rule,
+          retention_days,
+        },
+        { client, format },
+      ) => {
+        const normalizedId = normalizeAccountId(account_id);
+        const result = await client.createCustomAudience(normalizedId, {
+          name,
+          subtype,
+          description,
+          customer_file_source,
+          rule,
+          retention_days,
+        });
+
+        return createSuccessResponse(
+          {
+            audience_id: result.id,
+            message: `Custom audience "${name}" created successfully`,
+          },
+          format,
+        );
+      },
+    ),
+  );
+
+  server.tool(
+    "meta_create_lookalike_audience",
+    `Create a lookalike audience from an origin audience.
+
+Creates a LOOKALIKE audience in an ad account using an existing source audience ID and lookalike_spec.
+
+Args:
+  - account_id (string, required): Ad account ID (with or without 'act_' prefix)
+  - name (string, required): Lookalike audience name
+  - origin_audience_id (string, required): Source audience ID
+  - lookalike_spec (object, required): Lookalike spec (for example { country: 'US', ratio: 0.01 })
+  - description (string, optional): Audience description
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')`,
+    {
+      account_id: accountIdSchema,
+      name: z.string().min(1).describe("Lookalike audience name"),
+      origin_audience_id: z.string().min(1).describe("Source audience ID"),
+      lookalike_spec: z
+        .record(z.unknown())
+        .describe("Lookalike specification object"),
+      description: z.string().optional().describe("Audience description"),
+      user_id: userIdSchema,
+      response_format: responseFormatSchema,
+    },
+    CREATE_ANNOTATIONS,
+    withToolHandler(
+      async (
+        { account_id, name, origin_audience_id, lookalike_spec, description },
+        { client, format },
+      ) => {
+        const normalizedId = normalizeAccountId(account_id);
+        const result = await client.createLookalikeAudience(normalizedId, {
+          name,
+          origin_audience_id,
+          lookalike_spec,
+          description,
+        });
+
+        return createSuccessResponse(
+          {
+            audience_id: result.id,
+            message: `Lookalike audience "${name}" created successfully`,
+          },
+          format,
+        );
+      },
+    ),
   );
 }

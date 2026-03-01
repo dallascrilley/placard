@@ -80,6 +80,82 @@
   - `pnpm test` passed (`12/12` files, `249/249` tests)
   - `pnpm validate:descriptions` passed (`Total tools found: 40`)
 
+## Post-Review Suggestions Round 2 (2026-03-01)
+- [x] Add `EVENT_RESPONSES` + `destination_type` batch warning when value is missing or not `ON_EVENT`
+- [x] Add `event_id` support to creative shorthand template (`buildObjectStorySpecFromTemplate`)
+- [x] Parallelize campaign and ad set execution tiers with `Promise.allSettled`
+- [x] Keep `creatives` alias backward compatible but mark as deprecated; prefer `shared_creatives`
+- [x] Add optional budget-phase execution mode (`execute_now`) to `meta_generate_budget_phase_plan`
+- [x] Add/update regression tests for validation warnings, template injection, parallel tier behavior, and budget execution mode
+- [x] Run verification (`qa`)
+
+## Review (Post-Review Suggestions Round 2)
+- [x] Root cause covered: batch validation now warns when `optimization_goal` is `EVENT_RESPONSES` and `destination_type` is missing or not `ON_EVENT`.
+- [x] Root cause covered: creative shorthand now supports `event_id` and template expansion accepts `page_id + event_id` (with optional `link`).
+- [x] Throughput improvement: shared creative, campaign, ad set, and ad tiers now dispatch via `Promise.allSettled` while preserving partial-progress reporting.
+- [x] API ergonomics: `creatives` remains supported but now emits a deprecation warning in favor of canonical `shared_creatives`.
+- [x] Automation upgrade: `meta_generate_budget_phase_plan` now supports `execute_now: true` and returns execution success/failure details.
+- [x] Validation evidence: `qa` passed (`tsc --noEmit`, `biome check` warnings-only, `vitest` 311/311 passed).
+
+## Post-Review Suggestions (2026-03-01)
+- [x] Update batch rollback hints to clarify creatives are non-deletable on Meta
+- [x] Add ad-account-timezone execution reminder to `meta_generate_budget_phase_plan`
+- [x] Add regression assertions for rollback hint + timezone note
+- [x] Run verification (`qa`)
+
+## Review (Post-Review Suggestions)
+- [x] Root-cause clarity fix: batch rollback guidance now explicitly states creatives are non-deletable and should be archived/ignored on retry.
+- [x] Operator guidance fix: budget phase plans now include an execution note to run phase dates in ad-account timezone.
+- [x] Validation evidence: targeted tests passed (`38/38`), `qa` passed (`typecheck`, lint warnings-only, `306` tests passed).
+
+## Follow-up Completion: Remaining Campaign Friction (2026-03-01)
+- [x] Add show-config friendly creative shorthand fields (`page_id`, `link`, `message`, `title`, `call_to_action_type`, `image_hash`/`image_key`) to batch schema
+- [x] Add `creatives` alias for `shared_creatives` in batch config and enforce exclusivity
+- [x] Update batch validation/execution to materialize shorthand creatives into `object_story_spec`
+- [x] Add `meta_generate_budget_phase_plan` composite tool for dated phase transition update calls
+- [x] Add regression coverage for creative alias/template behavior and budget phase planner tool
+- [x] Re-run verification (`pnpm build`, `pnpm test`)
+
+## Review (Follow-up Completion: Remaining Campaign Friction)
+- [x] Root cause fixed: ad copy can now live directly in per-show batch config via creative shorthand instead of hand-building deep `object_story_spec` JSON.
+- [x] Root cause fixed: budget phase transitions now have an explicit generated checklist + exact `meta_update_campaign` call payloads and dates.
+- [x] Validation evidence: `pnpm build` passed; `pnpm test` passed (`13` files, `305` tests); lint remains warnings-only for pre-existing complexity rules.
+
+## Plan: meta_create_campaign_from_config Batch Tool (2026-03-01)
+- [x] Add batch config schema in `src/schemas/batch.ts` and export from `src/schemas/index.ts`
+- [x] Implement `src/tools/batch.ts` (`validateConfig`, `executeBatch`, `registerBatchTools`)
+- [x] Register batch tools in `src/server.ts`
+- [x] Add `meta_verify_campaign_structure` tool in `src/tools/composite.ts`
+- [x] Soften `validatePromotedObjectConstraints` to warning and thread warning response in `meta_create_adset`
+- [x] Add tests in `src/__tests__/tools/batch.test.ts`
+- [x] Update tool registration assertions in `src/__tests__/server.test.ts` and composite registration tests
+- [x] Run verification (`pnpm build`, `pnpm test`)
+
+## Review (Plan: meta_create_campaign_from_config Batch Tool)
+- [x] Capture root cause/value summary and validation evidence
+
+### Evidence
+- Added `meta_create_campaign_from_config` batch tool with pre-flight validation, dry-run support, tiered execution, and partial-progress error reporting in `src/tools/batch.ts`.
+- Added `meta_verify_campaign_structure` read-only verification tool in `src/tools/composite.ts`.
+- Softened `promoted_object.event_id` constraint from blocking error to warning in `src/tools/adsets.ts` and included warnings in create response payload.
+- Added batch schema + exports in `src/schemas/batch.ts` and `src/schemas/index.ts`.
+- Updated registrations and expectations in `src/server.ts`, `src/__tests__/server.test.ts`, and `src/__tests__/tools/composite.test.ts`.
+- Added targeted regression coverage in `src/__tests__/tools/batch.test.ts`.
+- Validation: `pnpm lint` passed with complexity warnings only, `pnpm build` passed, `pnpm test` passed (`13` files, `289` tests).
+
+## Follow-up Execution (2026-03-01)
+- [x] Add `config_path` support to `meta_create_campaign_from_config` (file-based config input)
+- [x] Add custom audience discovery path: `meta_get_custom_audiences`
+- [x] Add regression tests for `config_path` and config/config_path exclusivity
+- [x] Add API client tests for `getCustomAudiences`
+- [x] Update server tool inventory count for new account tool
+
+## Review (Follow-up Execution)
+- [x] Root cause fixed: batch creation can now be driven directly from a filled JSON file via `config_path`, removing one remaining manual copy/paste step.
+- [x] Root cause fixed: custom audience ID discovery no longer requires manual Ads Manager lookups; `meta_get_custom_audiences` now returns audiences + paging.
+- [x] Validation evidence: `pnpm build` passed, `pnpm test` passed (`13` files, `294` tests), lint remains warnings-only for known complexity rules.
+
+
 ## OAuth callback state mismatch troubleshooting
 - [x] Identify why callback returns `Invalid or expired state parameter`
 - [x] Add callback fallback page that preserves auth completion path using `meta_complete_auth`
@@ -227,3 +303,29 @@
 - Added 4 composite tools in `src/tools/composite.ts` and registered in `src/server.ts`.
 - Added regression coverage in `src/__tests__/tools/composite.test.ts` and updated server inventory expectations in `src/__tests__/server.test.ts`.
 - Validation: `pnpm typecheck` passed; `pnpm lint` passed with 5 pre-existing complexity warnings; `pnpm test` passed (219 tests); `pnpm build` passed; `pnpm validate:descriptions` reports `Total tools found: 31` and all descriptions valid.
+
+## MCP Audit Fixes (2026-02-28)
+- [x] Fix `meta_create_ad_creative` passthrough for `asset_feed_spec`, `url_tags`, `instagram_actor_id`
+- [x] Add tests for creative passthrough payload in `MetaClient.createAdCreative`
+- [x] Add CBO guardrails for `meta_create_adset` when campaign-level budget is present
+- [x] Clarify `meta_create_ad` inline creative docs (`object_story_spec` only)
+- [x] Add `stop_time` + budget compatibility validation and docs for campaign tools
+- [x] Run verification gates (`typecheck`, `lint`, `test`)
+
+## Review (MCP Audit Fixes)
+- [x] Root cause fixed: creative create path now preserves optional dynamic-creative and tracking fields (`asset_feed_spec`, `url_tags`, `instagram_actor_id`, `degrees_of_freedom_spec`, `applink_treatment`) and enforces one-of spec input (`object_story_spec` xor `asset_feed_spec`).
+- [x] Root cause fixed: ad-set creation now checks parent campaign budget mode (best-effort) and blocks ad-set budget fields for CBO campaigns with a clear error.
+- [x] Root cause fixed: ad creation docstring now explicitly documents inline `object_story_spec` behavior and dynamic creative flow via `meta_create_ad_creative` + `creative_id`.
+- [x] Root cause fixed: campaign `stop_time` now validates timezone presence and lifetime-budget compatibility, with docs aligned to real Meta behavior.
+- [x] Validation evidence: `qa` passed (`pnpm typecheck`, `pnpm lint`, `pnpm test`), lint emitted existing complexity warnings only; tests `271 passed`.
+
+## Follow-up Fixes: #14 + #16 (2026-03-01)
+- [x] Force explicit campaign `bid_strategy` default to `LOWEST_COST_WITHOUT_CAP` when omitted
+- [x] Add regression test for campaign bid strategy default behavior
+- [x] Add creative CTA guardrail: reject `GET_TICKETS` in `object_story_spec` and suggest `BUY_TICKETS`
+- [x] Add creative CTA validator tests
+- [x] Re-run verification gates (`typecheck`, `lint`, `test`)
+
+## Review (Follow-up Fixes: #14 + #16)
+- [x] Root cause fixed: campaign create requests now always send explicit `bid_strategy`, avoiding Meta fallback to bid-cap defaults that require ad-set `bid_amount`.
+- [x] Root cause fixed: `meta_create_ad_creative` now blocks known invalid `GET_TICKETS` CTA in `object_story_spec` before API call and provides replacement guidance.

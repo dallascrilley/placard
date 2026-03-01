@@ -246,7 +246,7 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 | `meta_search_ads` | Search ad creative text by keyword |
 | `meta_validate_campaign_config` | Validate campaign config pre-flight checks |
 | `meta_verify_campaign_structure` | Verify live campaign/ad set/ad structure and key fields |
-| `meta_generate_budget_phase_plan` | Generate dated `meta_update_campaign` calls for budget phase transitions |
+| `meta_generate_budget_phase_plan` | Generate dated `meta_update_campaign` calls for budget phase transitions (optionally execute immediately) |
 
 ### Batch Workflows (1 tool)
 
@@ -277,6 +277,7 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 - `EVENT_RESPONSES` optimization goal does **not** support `promoted_object.event_id`
 - The server reports this as a warning (does not block ad-set creation)
 - Event linking for Event Response campaigns should go in ad creative `link_data` URL, not the ad set
+- For `EVENT_RESPONSES`, set `destination_type` to `ON_EVENT` (batch validation warns when missing/mismatched)
 
 ### Campaign Budget Optimization (CBO)
 - If a campaign uses CBO (budget set at campaign level), ad sets must **not** have their own `daily_budget` or `lifetime_budget`
@@ -289,8 +290,10 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 - List tools support `response_format: "compact"` for token-efficient tabular output (`[headers, ...rows]`).
 - `meta_create_campaign_from_config` supports:
   - `config_path` for file-based execution
-  - `creatives` alias for `shared_creatives`
-  - copy-template creative fields (`page_id`, `link`, `message`, `title`, `call_to_action_type`, `image_hash`/`image_key`)
+  - `config_path` is restricted to files under the MCP server process working directory
+  - `shared_creatives` (canonical) and backward-compatible `creatives` alias (deprecated)
+  - copy-template creative fields (`page_id`, `link`, `event_id`, `message`, `title`, `call_to_action_type`, `image_hash`/`image_key`)
+  - `meta_generate_budget_phase_plan` supports `execute_now: true` to apply generated updates immediately
 
 ## Documentation
 

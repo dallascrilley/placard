@@ -1,5 +1,22 @@
 # TODO
 
+## Post-Review Suggestions Round 2 (2026-03-01)
+- [x] Add `EVENT_RESPONSES` + `destination_type` batch warning when value is missing or not `ON_EVENT`
+- [x] Add `event_id` support to creative shorthand template (`buildObjectStorySpecFromTemplate`)
+- [x] Parallelize campaign and ad set execution tiers with `Promise.allSettled`
+- [x] Keep `creatives` alias backward compatible but mark as deprecated; prefer `shared_creatives`
+- [x] Add optional budget-phase execution mode (`execute_now`) to `meta_generate_budget_phase_plan`
+- [x] Add/update regression tests for validation warnings, template injection, parallel tier behavior, and budget execution mode
+- [x] Run verification (`qa`)
+
+## Review (Post-Review Suggestions Round 2)
+- [x] Root cause covered: batch validation now warns when `optimization_goal` is `EVENT_RESPONSES` and `destination_type` is missing or not `ON_EVENT`.
+- [x] Root cause covered: creative shorthand now supports `event_id` and template expansion accepts `page_id + event_id` (with optional `link`).
+- [x] Throughput improvement: shared creative, campaign, ad set, and ad tiers now dispatch via `Promise.allSettled` while preserving partial-progress reporting.
+- [x] API ergonomics: `creatives` remains supported but now emits a deprecation warning in favor of canonical `shared_creatives`.
+- [x] Automation upgrade: `meta_generate_budget_phase_plan` now supports `execute_now: true` and returns execution success/failure details.
+- [x] Validation evidence: `qa` passed (`tsc --noEmit`, `biome check` warnings-only, `vitest` 311/311 passed).
+
 ## Post-Review Suggestions (2026-03-01)
 - [x] Update batch rollback hints to clarify creatives are non-deletable on Meta
 - [x] Add ad-account-timezone execution reminder to `meta_generate_budget_phase_plan`

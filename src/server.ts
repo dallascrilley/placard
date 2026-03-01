@@ -5,6 +5,7 @@ import { registerAdImageTools } from "./tools/ad-images.js";
 import { registerAdTools } from "./tools/ads.js";
 import { registerAdSetTools } from "./tools/adsets.js";
 import { registerAuthTools } from "./tools/auth.js";
+import { registerBatchTools } from "./tools/batch.js";
 import { registerCampaignTools } from "./tools/campaigns.js";
 import { registerCompositeTools } from "./tools/composite.js";
 import { registerCreativeTools } from "./tools/creatives.js";
@@ -97,6 +98,9 @@ Errors:
 
   // Composite tools (campaign_summary, account_overview, search_ads, validate_campaign_config)
   registerCompositeTools(server);
+
+  // Batch tools (campaign hierarchy create from config)
+  registerBatchTools(server);
 
   return server;
 }

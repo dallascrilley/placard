@@ -14,6 +14,7 @@ import type {
   AdSet,
   ApiResponse,
   Campaign,
+  CustomAudience,
   Insights,
   ReachEstimate,
   TargetingSearchResult,
@@ -34,6 +35,10 @@ export interface MetaClientOptions {
   auth?: MetaAuth;
   maxRetries?: number;
 }
+
+export type LookalikeSpec =
+  | { country: string; ratio: number }
+  | { type: string; country: string; starting_ratio: number; ratio: number };
 
 export class MetaClient {
   private accessToken: string | null;
@@ -176,6 +181,96 @@ export class MetaClient {
           "id,account_id,name,currency,timezone_name,account_status,amount_spent,balance,business,funding_source_details",
         ),
       },
+    });
+  }
+
+  /**
+   * Get custom audiences for an ad account
+   */
+  async getCustomAudiences(
+    accountId: string,
+    options: {
+      limit?: number | undefined;
+      after?: string | undefined;
+      before?: string | undefined;
+      fields?: string[] | undefined;
+    } = {},
+  ): Promise<ApiResponse<CustomAudience>> {
+    return this.request<ApiResponse<CustomAudience>>(
+      `/${accountId}/customaudiences`,
+      {
+        params: {
+          fields: this.resolveFields(
+            options.fields,
+            "id,name,subtype,approximate_count,time_created,time_updated",
+          ),
+          limit: options.limit ?? 25,
+          after: options.after,
+          before: options.before,
+          summary: true,
+        },
+      },
+    );
+  }
+
+  /**
+   * Create a custom audience in an ad account
+   */
+  async createCustomAudience(
+    accountId: string,
+    data: {
+      name: string;
+      subtype?: string | undefined;
+      description?: string | undefined;
+      customer_file_source?: string | undefined;
+      rule?: object | undefined;
+      retention_days?: number | undefined;
+    },
+  ): Promise<{ id: string }> {
+    const body: Record<string, unknown> = {
+      name: data.name,
+      subtype: data.subtype ?? "CUSTOM",
+    };
+
+    if (data.description !== undefined) body["description"] = data.description;
+    if (data.customer_file_source !== undefined) {
+      body["customer_file_source"] = data.customer_file_source;
+    }
+    if (data.rule !== undefined) body["rule"] = data.rule;
+    if (data.retention_days !== undefined) {
+      body["retention_days"] = data.retention_days;
+    }
+
+    return this.request<{ id: string }>(`/${accountId}/customaudiences`, {
+      method: "POST",
+      body,
+    });
+  }
+
+  /**
+   * Create a lookalike audience in an ad account
+   */
+  async createLookalikeAudience(
+    accountId: string,
+    data: {
+      name: string;
+      origin_audience_id: string;
+      lookalike_spec: LookalikeSpec;
+      description?: string | undefined;
+    },
+  ): Promise<{ id: string }> {
+    const body: Record<string, unknown> = {
+      name: data.name,
+      subtype: "LOOKALIKE",
+      origin_audience_id: data.origin_audience_id,
+      lookalike_spec: data.lookalike_spec,
+    };
+
+    if (data.description !== undefined) body["description"] = data.description;
+
+    return this.request<{ id: string }>(`/${accountId}/customaudiences`, {
+      method: "POST",
+      body,
     });
   }
 

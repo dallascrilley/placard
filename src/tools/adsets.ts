@@ -127,6 +127,22 @@ const DEFAULT_ADSET_COMPARE_IGNORE_FIELDS = [
   "budget_remaining",
 ];
 
+function normalizeAdSetPacingType(value: unknown): string | undefined {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    const firstString = value.find(
+      (entry): entry is string =>
+        typeof entry === "string" && entry.trim().length > 0,
+    );
+    return firstString;
+  }
+
+  return undefined;
+}
+
 export function registerAdSetTools(server: McpServer): void {
   /**
    * List ad sets for an ad account
@@ -358,10 +374,9 @@ Returns:
         >;
         const normalizedTargetId = normalizeAccountId(target_account_id);
         const copyBudget = copy_budget ?? true;
-        const rawPacingType = sourceAdSetRecord["pacing_type"];
-        const pacingType = Array.isArray(rawPacingType)
-          ? rawPacingType[0]
-          : rawPacingType;
+        const pacingType = normalizeAdSetPacingType(
+          sourceAdSetRecord["pacing_type"],
+        );
 
         const result = await client.createAdSet(normalizedTargetId, {
           name: name ?? `${sourceAdSet.name} (Copy)`,
@@ -391,7 +406,7 @@ Returns:
           is_dynamic_creative: sourceAdSetRecord["is_dynamic_creative"] as
             | boolean
             | undefined,
-          pacing_type: pacingType as string | undefined,
+          pacing_type: pacingType,
         });
 
         return createSuccessResponse(

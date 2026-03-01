@@ -152,4 +152,58 @@ describe("Ad duplicate tool", () => {
     expect(String(payload.error)).toContain("cannot be cloned");
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
+
+  it("should generate a unique fallback creative name when source name is missing", async () => {
+    const tool = vi.fn();
+    registerAdTools({ tool } as unknown as McpServer);
+    const handler = getRegisteredToolHandler(tool, "meta_duplicate_ad");
+
+    vi.spyOn(metaClientModule, "createMetaClient").mockReturnValue(
+      new MetaClient({ accessToken: "test-token" }),
+    );
+
+    mockFetch
+      .mockResolvedValueOnce(
+        createMockResponse({
+          body: {
+            id: "ad_src_3",
+            name: "Source Ad",
+            adset_id: "as_3",
+            campaign_id: "camp_3",
+            status: "PAUSED",
+            effective_status: "PAUSED",
+            creative: {
+              id: "cr_src_3",
+              object_story_spec: {
+                page_id: "123",
+                link_data: {
+                  link: "https://example.com",
+                  message: "Hello",
+                },
+              },
+            },
+          },
+        }),
+      )
+      .mockResolvedValueOnce(createMockResponse({ body: { id: "cr_new_3" } }))
+      .mockResolvedValueOnce(createMockResponse({ body: { id: "ad_new_3" } }));
+
+    await handler(
+      {
+        source_ad_id: "ad_src_3",
+        target_account_id: "act_999",
+        target_adset_id: "as_tgt_3",
+        response_format: "json",
+      },
+      {},
+    );
+
+    const creativeCreateCall = mockFetch.mock.calls[1];
+    const creativeCreateBody = JSON.parse(
+      String(creativeCreateCall?.[1]?.body ?? "{}"),
+    );
+    expect(creativeCreateBody.name).toMatch(
+      /^Source Ad \(Copy Creative \d{4}-\d{2}-\d{2}T/,
+    );
+  });
 });

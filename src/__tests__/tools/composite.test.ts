@@ -151,6 +151,47 @@ describe("Composite Tools", () => {
       expect(parsed.phase_plan.calls[0]?.args?.daily_budget).toBe(5000);
       expect(parsed.phase_plan.calls[1]?.effective_date).toBe("2026-03-17");
     });
+
+    it("can execute generated update calls when execute_now is true", async () => {
+      const tool = vi.fn();
+      registerCompositeTools({ tool } as unknown as McpServer);
+
+      const planHandler = tool.mock.calls[5]?.[4] as (
+        args: Record<string, unknown>,
+        extra: unknown,
+      ) => Promise<{ content: Array<{ text: string }> }>;
+
+      const updateCampaignSpy = vi
+        .spyOn(MetaClient.prototype, "updateCampaign")
+        .mockResolvedValue({ success: true });
+
+      const response = await planHandler(
+        {
+          account_id: "act_123",
+          validate_live: false,
+          execute_now: true,
+          phases: [
+            {
+              phase: "Phase 1",
+              effective_date: "2026-03-10",
+              updates: [{ campaign_id: "camp_1", daily_budget: 5000 }],
+            },
+            {
+              phase: "Phase 2",
+              effective_date: "2026-03-17",
+              updates: [{ campaign_id: "camp_2", daily_budget: 7000 }],
+            },
+          ],
+        },
+        {},
+      );
+
+      const parsed = parseToolResponseText(response);
+      expect(updateCampaignSpy).toHaveBeenCalledTimes(2);
+      expect(parsed.phase_plan.execution.requested).toBe(2);
+      expect(parsed.phase_plan.execution.succeeded).toBe(2);
+      expect(parsed.phase_plan.execution.failed).toBe(0);
+    });
   });
 
   describe("meta_get_campaign_summary", () => {

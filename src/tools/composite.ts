@@ -2,13 +2,16 @@
  * Composite Tools
  *
  * High-level MCP tools that compose multiple API calls into single-call workflows.
- * All tools are read-only and do not modify any resources.
+ * Most tools are read-only; budget phase execution can optionally apply updates.
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MetaClient } from "../api/meta-client.js";
-import { READ_ONLY_ANNOTATIONS } from "../constants/index.js";
+import {
+  READ_ONLY_ANNOTATIONS,
+  UPDATE_ANNOTATIONS,
+} from "../constants/index.js";
 import {
   accountIdSchema,
   responseFormatSchema,
@@ -260,10 +263,23 @@ interface CampaignBudgetSnapshot {
   spend_cap: string | null;
 }
 
+interface BudgetPhaseCall {
+  effective_date: string;
+  phase: string;
+  tool: "meta_update_campaign";
+  args: {
+    campaign_id: string;
+    daily_budget?: number | undefined;
+    lifetime_budget?: number | undefined;
+    spend_cap?: number | undefined;
+  };
+  checklist_item: string;
+}
+
 /** Input is already validated as YYYY-MM-DD by schema */
 const toIsoDateLabel = (value: string) => value;
 
-function buildPhaseUpdateCalls(phases: BudgetPhase[]) {
+function buildPhaseUpdateCalls(phases: BudgetPhase[]): BudgetPhaseCall[] {
   return phases.flatMap((phase) =>
     phase.updates.map((update) => ({
       effective_date: toIsoDateLabel(phase.effective_date),
@@ -278,6 +294,63 @@ function buildPhaseUpdateCalls(phases: BudgetPhase[]) {
       checklist_item: `On ${toIsoDateLabel(phase.effective_date)} apply ${phase.phase} budget update to campaign ${update.campaign_id}`,
     })),
   );
+}
+
+async function executePhaseUpdateCalls(
+  client: MetaClient,
+  phaseCalls: BudgetPhaseCall[],
+): Promise<{
+  requested: number;
+  succeeded: number;
+  failed: number;
+  results: Array<{
+    phase: string;
+    effective_date: string;
+    campaign_id: string;
+    success: boolean;
+    error?: string;
+  }>;
+}> {
+  const settled = await Promise.allSettled(
+    phaseCalls.map((call) =>
+      client.updateCampaign(call.args.campaign_id, {
+        daily_budget: call.args.daily_budget,
+        lifetime_budget: call.args.lifetime_budget,
+        spend_cap: call.args.spend_cap,
+      }),
+    ),
+  );
+
+  const results = settled.map((entry, index) => {
+    const call = phaseCalls[index];
+    const base = {
+      phase: call?.phase ?? "unknown",
+      effective_date: call?.effective_date ?? "unknown",
+      campaign_id: call?.args.campaign_id ?? "unknown",
+    };
+    if (entry.status === "fulfilled") {
+      return {
+        ...base,
+        success: true,
+      };
+    }
+    return {
+      ...base,
+      success: false,
+      error:
+        entry.reason instanceof Error
+          ? entry.reason.message
+          : String(entry.reason),
+    };
+  });
+
+  const succeeded = results.filter((result) => result.success).length;
+  return {
+    requested: phaseCalls.length,
+    succeeded,
+    failed: phaseCalls.length - succeeded,
+    results,
+  };
 }
 
 async function loadCampaignBudgetSnapshots(
@@ -962,11 +1035,13 @@ Args:
 
 Creates a phased checklist and meta_update_campaign call payloads from planned budget phases.
 Optionally validates current live campaign budgets to highlight unchanged updates.
+Optionally executes all generated updates immediately.
 
 Args:
   - account_id (string, required): Ad account ID (with or without act_ prefix)
   - phases (array, required): Ordered budget phases with effective_date and campaign updates
   - validate_live (boolean, optional): Fetch live campaign budgets for comparison (default: true)
+  - execute_now (boolean, optional): Execute generated updates immediately (default: false)
   - user_id (string, optional): User ID for multi-user auth (default: 'default')`,
     {
       account_id: accountIdSchema,
@@ -1005,12 +1080,21 @@ Args:
         .boolean()
         .optional()
         .describe("Fetch live campaign budgets for comparison (default: true)"),
+      execute_now: z
+        .boolean()
+        .optional()
+        .describe(
+          "Execute generated update calls immediately (default: false)",
+        ),
       user_id: userIdSchema,
       response_format: responseFormatSchema,
     },
-    READ_ONLY_ANNOTATIONS,
+    UPDATE_ANNOTATIONS,
     withToolHandler(
-      async ({ account_id, phases, validate_live }, { client, format }) => {
+      async (
+        { account_id, phases, validate_live, execute_now },
+        { client, format },
+      ) => {
         const normalizedId = normalizeAccountId(account_id);
         const phaseCalls = buildPhaseUpdateCalls(phases as BudgetPhase[]);
         const uniqueCampaignIds = Array.from(
@@ -1027,6 +1111,9 @@ Args:
         const warnings = shouldValidateLive
           ? collectBudgetPhaseWarnings(phases as BudgetPhase[], snapshots)
           : [];
+        const execution = execute_now
+          ? await executePhaseUpdateCalls(client, phaseCalls)
+          : null;
 
         return createSuccessResponse(
           {
@@ -1040,6 +1127,7 @@ Args:
               calls: phaseCalls,
               current_budgets: snapshots,
               warnings,
+              execution,
             },
           },
           format,

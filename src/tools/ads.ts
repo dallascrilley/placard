@@ -47,6 +47,12 @@ function hasObjectStorySpec(
   return typeof spec === "object" && spec !== null && !Array.isArray(spec);
 }
 
+function buildFallbackCreativeName(sourceAdName: string): string {
+  // Keep fallback names unique enough to avoid destination creative-name collisions.
+  const suffix = new Date().toISOString().replace(/[:.]/g, "-");
+  return `${sourceAdName} (Copy Creative ${suffix})`;
+}
+
 export function registerAdTools(server: McpServer): void {
   /**
    * List ads for an ad account
@@ -278,7 +284,7 @@ Returns:
             name: (typeof sourceCreative["name"] === "string" &&
             sourceCreative["name"].trim().length > 0
               ? sourceCreative["name"]
-              : `${sourceAd.name} (Copy Creative)`) as string,
+              : buildFallbackCreativeName(sourceAd.name)) as string,
             object_story_spec: sourceCreative.object_story_spec,
           },
         );

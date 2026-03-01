@@ -346,6 +346,7 @@ describe("MetaClient", () => {
       expect(result).toEqual(mockData);
       const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
       expect(calledUrl).toContain("/act_123/campaigns");
+      expect(calledUrl).toContain("summary=true");
     });
 
     it("should apply status filter", async () => {

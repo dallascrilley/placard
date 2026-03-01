@@ -7,6 +7,7 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import type { MetaClient } from "../api/meta-client.js";
 import { READ_ONLY_ANNOTATIONS } from "../constants/index.js";
 import {
   accountIdSchema,
@@ -17,6 +18,337 @@ import type { ReachEstimate } from "../types/meta-api.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
 import { withToolHandler } from "../utils/tool-handler.js";
 import { createSuccessResponse } from "../utils/tool-responses.js";
+
+type VerificationIssueLevel = "error" | "warn";
+
+interface VerificationIssue {
+  level: VerificationIssueLevel;
+  path: string;
+  message: string;
+}
+
+const CAMPAIGN_VERIFY_FIELDS = [
+  "id",
+  "name",
+  "status",
+  "effective_status",
+  "bid_strategy",
+  "daily_budget",
+  "lifetime_budget",
+] as const;
+
+const ADSET_VERIFY_FIELDS = [
+  "id",
+  "name",
+  "campaign_id",
+  "status",
+  "effective_status",
+  "daily_budget",
+  "lifetime_budget",
+  "destination_type",
+  "targeting",
+] as const;
+
+const AD_VERIFY_FIELDS = [
+  "id",
+  "name",
+  "campaign_id",
+  "adset_id",
+  "status",
+  "effective_status",
+] as const;
+
+function issue(
+  level: VerificationIssueLevel,
+  path: string,
+  message: string,
+): VerificationIssue {
+  return { level, path, message };
+}
+
+function readStringField(
+  obj: Record<string, unknown>,
+  key: string,
+): string | undefined {
+  const value = obj[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function readFirstStringField(
+  obj: Record<string, unknown>,
+  keys: string[],
+): string | undefined {
+  for (const key of keys) {
+    const value = readStringField(obj, key);
+    if (value) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function collectCampaignIssues(
+  campaign: Record<string, unknown>,
+  issues: VerificationIssue[],
+): { campaignStatus: string | null; bidStrategy: string | null } {
+  const campaignStatus = readFirstStringField(campaign, [
+    "effective_status",
+    "status",
+  ]);
+  const bidStrategy = readStringField(campaign, "bid_strategy");
+  const dailyBudget = readStringField(campaign, "daily_budget");
+  const lifetimeBudget = readStringField(campaign, "lifetime_budget");
+
+  if (!campaignStatus) {
+    issues.push(
+      issue(
+        "error",
+        "campaign.effective_status",
+        "Campaign status is missing.",
+      ),
+    );
+  }
+  if (!bidStrategy) {
+    issues.push(
+      issue(
+        "warn",
+        "campaign.bid_strategy",
+        "Campaign bid_strategy is missing.",
+      ),
+    );
+  }
+  if (!dailyBudget && !lifetimeBudget) {
+    issues.push(
+      issue(
+        "warn",
+        "campaign.budget",
+        "Campaign has no daily_budget or lifetime_budget configured.",
+      ),
+    );
+  }
+
+  return {
+    campaignStatus: campaignStatus ?? null,
+    bidStrategy: bidStrategy ?? null,
+  };
+}
+
+function collectAdSetIssues(
+  adSets: Array<Record<string, unknown>>,
+  issues: VerificationIssue[],
+): void {
+  for (const adSet of adSets) {
+    const adSetId = readStringField(adSet, "id") ?? "unknown";
+    const adSetStatus = readFirstStringField(adSet, [
+      "effective_status",
+      "status",
+    ]);
+    const destinationType = readStringField(adSet, "destination_type");
+
+    if (!adSetStatus) {
+      issues.push(
+        issue(
+          "error",
+          `ad_sets.${adSetId}.effective_status`,
+          "Ad set status is missing.",
+        ),
+      );
+    }
+    if (!destinationType) {
+      issues.push(
+        issue(
+          "warn",
+          `ad_sets.${adSetId}.destination_type`,
+          "Ad set destination_type is missing.",
+        ),
+      );
+    }
+    if (!adSet["targeting"]) {
+      issues.push(
+        issue(
+          "error",
+          `ad_sets.${adSetId}.targeting`,
+          "Ad set targeting is missing.",
+        ),
+      );
+    }
+  }
+}
+
+function collectAdIssues(
+  ads: Array<Record<string, unknown>>,
+  issues: VerificationIssue[],
+): void {
+  for (const ad of ads) {
+    const adId = readStringField(ad, "id") ?? "unknown";
+    const adStatus = readFirstStringField(ad, ["effective_status", "status"]);
+    if (!adStatus) {
+      issues.push(
+        issue("warn", `ads.${adId}.effective_status`, "Ad status is missing."),
+      );
+    }
+  }
+}
+
+async function buildCampaignStructureReport(
+  client: MetaClient,
+  accountId: string,
+  campaignId: string,
+) {
+  const [campaign, adSetsResponse, adsResponse] = await Promise.all([
+    client.getCampaignDetails(campaignId, [...CAMPAIGN_VERIFY_FIELDS]),
+    client.getAdSets(accountId, {
+      campaign_id: campaignId,
+      limit: 100,
+      fields: [...ADSET_VERIFY_FIELDS],
+    }),
+    client.getAds(accountId, {
+      campaign_id: campaignId,
+      limit: 100,
+      fields: [...AD_VERIFY_FIELDS],
+    }),
+  ]);
+
+  const campaignData = campaign as unknown as Record<string, unknown>;
+  const adSetData = adSetsResponse.data as unknown as Array<
+    Record<string, unknown>
+  >;
+  const adData = adsResponse.data as unknown as Array<Record<string, unknown>>;
+
+  const issues: VerificationIssue[] = [];
+  const { campaignStatus, bidStrategy } = collectCampaignIssues(
+    campaignData,
+    issues,
+  );
+  collectAdSetIssues(adSetData, issues);
+  collectAdIssues(adData, issues);
+
+  return {
+    campaign_id: campaignId,
+    campaign_name: readStringField(campaignData, "name") ?? campaignId,
+    campaign_status: campaignStatus,
+    bid_strategy: bidStrategy,
+    daily_budget: readStringField(campaignData, "daily_budget") ?? null,
+    lifetime_budget: readStringField(campaignData, "lifetime_budget") ?? null,
+    counts: {
+      ad_sets: adSetData.length,
+      ads: adData.length,
+    },
+    issues,
+    valid: issues.every((entry) => entry.level !== "error"),
+  };
+}
+
+interface BudgetPhaseEntry {
+  campaign_id: string;
+  daily_budget?: number | undefined;
+  lifetime_budget?: number | undefined;
+  spend_cap?: number | undefined;
+}
+
+interface BudgetPhase {
+  phase: string;
+  effective_date: string;
+  updates: BudgetPhaseEntry[];
+}
+
+interface CampaignBudgetSnapshot {
+  campaign_id: string;
+  campaign_name: string;
+  daily_budget: string | null;
+  lifetime_budget: string | null;
+  spend_cap: string | null;
+}
+
+/** Input is already validated as YYYY-MM-DD by schema */
+const toIsoDateLabel = (value: string) => value;
+
+function buildPhaseUpdateCalls(phases: BudgetPhase[]) {
+  return phases.flatMap((phase) =>
+    phase.updates.map((update) => ({
+      effective_date: toIsoDateLabel(phase.effective_date),
+      phase: phase.phase,
+      tool: "meta_update_campaign",
+      args: {
+        campaign_id: update.campaign_id,
+        daily_budget: update.daily_budget,
+        lifetime_budget: update.lifetime_budget,
+        spend_cap: update.spend_cap,
+      },
+      checklist_item: `On ${toIsoDateLabel(phase.effective_date)} apply ${phase.phase} budget update to campaign ${update.campaign_id}`,
+    })),
+  );
+}
+
+async function loadCampaignBudgetSnapshots(
+  client: MetaClient,
+  campaignIds: string[],
+): Promise<Record<string, CampaignBudgetSnapshot>> {
+  const details = await Promise.all(
+    campaignIds.map((campaignId) =>
+      client.getCampaignDetails(campaignId, [
+        "id",
+        "name",
+        "daily_budget",
+        "lifetime_budget",
+        "spend_cap",
+      ]),
+    ),
+  );
+
+  const snapshots: Record<string, CampaignBudgetSnapshot> = {};
+  for (const campaign of details) {
+    const campaignData = campaign as unknown as Record<string, unknown>;
+    const campaignId = readStringField(campaignData, "id");
+    if (!campaignId) {
+      continue;
+    }
+    snapshots[campaignId] = {
+      campaign_id: campaignId,
+      campaign_name: readStringField(campaignData, "name") ?? campaignId,
+      daily_budget: readStringField(campaignData, "daily_budget") ?? null,
+      lifetime_budget: readStringField(campaignData, "lifetime_budget") ?? null,
+      spend_cap: readStringField(campaignData, "spend_cap") ?? null,
+    };
+  }
+
+  return snapshots;
+}
+
+function collectBudgetPhaseWarnings(
+  phases: BudgetPhase[],
+  snapshots: Record<string, CampaignBudgetSnapshot>,
+): string[] {
+  const warnings: string[] = [];
+  for (const phase of phases) {
+    for (const update of phase.updates) {
+      const snapshot = snapshots[update.campaign_id];
+      if (!snapshot) {
+        warnings.push(
+          `Campaign ${update.campaign_id} could not be loaded for live-budget comparison.`,
+        );
+        continue;
+      }
+      if (
+        update.daily_budget !== undefined &&
+        snapshot.daily_budget === String(update.daily_budget)
+      ) {
+        warnings.push(
+          `Phase "${phase.phase}" keeps daily_budget unchanged for campaign ${update.campaign_id}.`,
+        );
+      }
+      if (
+        update.lifetime_budget !== undefined &&
+        snapshot.lifetime_budget === String(update.lifetime_budget)
+      ) {
+        warnings.push(
+          `Phase "${phase.phase}" keeps lifetime_budget unchanged for campaign ${update.campaign_id}.`,
+        );
+      }
+    }
+  }
+  return warnings;
+}
 
 export function registerCompositeTools(server: McpServer): void {
   server.tool(
@@ -572,6 +904,142 @@ Args:
               warnings,
               checks,
               reach_estimate: reachEstimate,
+            },
+          },
+          format,
+        );
+      },
+    ),
+  );
+
+  server.tool(
+    "meta_verify_campaign_structure",
+    `Verify campaign hierarchy structure and key config fields.
+
+Fetches each campaign, its ad sets, and its ads, then reports structural/config mismatches.
+
+Args:
+  - campaign_ids (array[string], required): Campaign IDs to verify
+  - account_id (string, required): Ad account ID (with or without act_ prefix)
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')`,
+    {
+      campaign_ids: z
+        .array(z.string().min(1))
+        .min(1)
+        .max(25)
+        .describe("Campaign IDs to verify"),
+      account_id: accountIdSchema,
+      user_id: userIdSchema,
+      response_format: responseFormatSchema,
+    },
+    READ_ONLY_ANNOTATIONS,
+    withToolHandler(
+      async ({ campaign_ids, account_id }, { client, format }) => {
+        const normalizedId = normalizeAccountId(account_id);
+        const reports = await Promise.all(
+          campaign_ids.map((campaignId: string) =>
+            buildCampaignStructureReport(client, normalizedId, campaignId),
+          ),
+        );
+
+        return createSuccessResponse(
+          {
+            verification: {
+              campaigns_checked: campaign_ids.length,
+              valid_campaigns: reports.filter((report) => report.valid).length,
+              reports,
+            },
+          },
+          format,
+        );
+      },
+    ),
+  );
+
+  server.tool(
+    "meta_generate_budget_phase_plan",
+    `Generate dated campaign budget phase transitions and exact update calls.
+
+Creates a phased checklist and meta_update_campaign call payloads from planned budget phases.
+Optionally validates current live campaign budgets to highlight unchanged updates.
+
+Args:
+  - account_id (string, required): Ad account ID (with or without act_ prefix)
+  - phases (array, required): Ordered budget phases with effective_date and campaign updates
+  - validate_live (boolean, optional): Fetch live campaign budgets for comparison (default: true)
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')`,
+    {
+      account_id: accountIdSchema,
+      phases: z
+        .array(
+          z.object({
+            phase: z.string().min(1),
+            effective_date: z
+              .string()
+              .regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD format"),
+            updates: z
+              .array(
+                z
+                  .object({
+                    campaign_id: z.string().min(1),
+                    daily_budget: z.number().int().positive().optional(),
+                    lifetime_budget: z.number().int().positive().optional(),
+                    spend_cap: z.number().int().positive().optional(),
+                  })
+                  .refine(
+                    (update) =>
+                      update.daily_budget !== undefined ||
+                      update.lifetime_budget !== undefined ||
+                      update.spend_cap !== undefined,
+                    {
+                      message:
+                        "Each update must include at least one of daily_budget, lifetime_budget, or spend_cap.",
+                    },
+                  ),
+              )
+              .min(1),
+          }),
+        )
+        .min(1),
+      validate_live: z
+        .boolean()
+        .optional()
+        .describe("Fetch live campaign budgets for comparison (default: true)"),
+      user_id: userIdSchema,
+      response_format: responseFormatSchema,
+    },
+    READ_ONLY_ANNOTATIONS,
+    withToolHandler(
+      async ({ account_id, phases, validate_live }, { client, format }) => {
+        const normalizedId = normalizeAccountId(account_id);
+        const phaseCalls = buildPhaseUpdateCalls(phases as BudgetPhase[]);
+        const uniqueCampaignIds = Array.from(
+          new Set(
+            (phases as BudgetPhase[]).flatMap((phase) =>
+              phase.updates.map((update) => update.campaign_id),
+            ),
+          ),
+        );
+        const shouldValidateLive = validate_live ?? true;
+        const snapshots = shouldValidateLive
+          ? await loadCampaignBudgetSnapshots(client, uniqueCampaignIds)
+          : {};
+        const warnings = shouldValidateLive
+          ? collectBudgetPhaseWarnings(phases as BudgetPhase[], snapshots)
+          : [];
+
+        return createSuccessResponse(
+          {
+            phase_plan: {
+              account_id: normalizedId,
+              phases: phases.length,
+              campaigns: uniqueCampaignIds.length,
+              generated_calls: phaseCalls.length,
+              execution_timezone_note:
+                "Execute each effective_date using the ad account timezone (not local system time), because Meta budget resets and scheduled updates follow the account timezone.",
+              calls: phaseCalls,
+              current_budgets: snapshots,
+              warnings,
             },
           },
           format,

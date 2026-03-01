@@ -1,5 +1,63 @@
 # TODO
 
+## Post-Review Suggestions (2026-03-01)
+- [x] Update batch rollback hints to clarify creatives are non-deletable on Meta
+- [x] Add ad-account-timezone execution reminder to `meta_generate_budget_phase_plan`
+- [x] Add regression assertions for rollback hint + timezone note
+- [x] Run verification (`qa`)
+
+## Review (Post-Review Suggestions)
+- [x] Root-cause clarity fix: batch rollback guidance now explicitly states creatives are non-deletable and should be archived/ignored on retry.
+- [x] Operator guidance fix: budget phase plans now include an execution note to run phase dates in ad-account timezone.
+- [x] Validation evidence: targeted tests passed (`38/38`), `qa` passed (`typecheck`, lint warnings-only, `306` tests passed).
+
+## Follow-up Completion: Remaining Campaign Friction (2026-03-01)
+- [x] Add show-config friendly creative shorthand fields (`page_id`, `link`, `message`, `title`, `call_to_action_type`, `image_hash`/`image_key`) to batch schema
+- [x] Add `creatives` alias for `shared_creatives` in batch config and enforce exclusivity
+- [x] Update batch validation/execution to materialize shorthand creatives into `object_story_spec`
+- [x] Add `meta_generate_budget_phase_plan` composite tool for dated phase transition update calls
+- [x] Add regression coverage for creative alias/template behavior and budget phase planner tool
+- [x] Re-run verification (`pnpm build`, `pnpm test`)
+
+## Review (Follow-up Completion: Remaining Campaign Friction)
+- [x] Root cause fixed: ad copy can now live directly in per-show batch config via creative shorthand instead of hand-building deep `object_story_spec` JSON.
+- [x] Root cause fixed: budget phase transitions now have an explicit generated checklist + exact `meta_update_campaign` call payloads and dates.
+- [x] Validation evidence: `pnpm build` passed; `pnpm test` passed (`13` files, `305` tests); lint remains warnings-only for pre-existing complexity rules.
+
+## Plan: meta_create_campaign_from_config Batch Tool (2026-03-01)
+- [x] Add batch config schema in `src/schemas/batch.ts` and export from `src/schemas/index.ts`
+- [x] Implement `src/tools/batch.ts` (`validateConfig`, `executeBatch`, `registerBatchTools`)
+- [x] Register batch tools in `src/server.ts`
+- [x] Add `meta_verify_campaign_structure` tool in `src/tools/composite.ts`
+- [x] Soften `validatePromotedObjectConstraints` to warning and thread warning response in `meta_create_adset`
+- [x] Add tests in `src/__tests__/tools/batch.test.ts`
+- [x] Update tool registration assertions in `src/__tests__/server.test.ts` and composite registration tests
+- [x] Run verification (`pnpm build`, `pnpm test`)
+
+## Review (Plan: meta_create_campaign_from_config Batch Tool)
+- [x] Capture root cause/value summary and validation evidence
+
+### Evidence
+- Added `meta_create_campaign_from_config` batch tool with pre-flight validation, dry-run support, tiered execution, and partial-progress error reporting in `src/tools/batch.ts`.
+- Added `meta_verify_campaign_structure` read-only verification tool in `src/tools/composite.ts`.
+- Softened `promoted_object.event_id` constraint from blocking error to warning in `src/tools/adsets.ts` and included warnings in create response payload.
+- Added batch schema + exports in `src/schemas/batch.ts` and `src/schemas/index.ts`.
+- Updated registrations and expectations in `src/server.ts`, `src/__tests__/server.test.ts`, and `src/__tests__/tools/composite.test.ts`.
+- Added targeted regression coverage in `src/__tests__/tools/batch.test.ts`.
+- Validation: `pnpm lint` passed with complexity warnings only, `pnpm build` passed, `pnpm test` passed (`13` files, `289` tests).
+
+## Follow-up Execution (2026-03-01)
+- [x] Add `config_path` support to `meta_create_campaign_from_config` (file-based config input)
+- [x] Add custom audience discovery path: `meta_get_custom_audiences`
+- [x] Add regression tests for `config_path` and config/config_path exclusivity
+- [x] Add API client tests for `getCustomAudiences`
+- [x] Update server tool inventory count for new account tool
+
+## Review (Follow-up Execution)
+- [x] Root cause fixed: batch creation can now be driven directly from a filled JSON file via `config_path`, removing one remaining manual copy/paste step.
+- [x] Root cause fixed: custom audience ID discovery no longer requires manual Ads Manager lookups; `meta_get_custom_audiences` now returns audiences + paging.
+- [x] Validation evidence: `pnpm build` passed, `pnpm test` passed (`13` files, `294` tests), lint remains warnings-only for known complexity rules.
+
 ## OAuth callback state mismatch troubleshooting
 - [x] Identify why callback returns `Invalid or expired state parameter`
 - [x] Add callback fallback page that preserves auth completion path using `meta_complete_auth`

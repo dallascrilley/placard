@@ -27,3 +27,12 @@ export {
   // Response format
   responseFormatSchema,
 } from "./common.js";
+
+export {
+  batchCampaignConfigSchema,
+  type BatchAdInput,
+  type BatchAdSetInput,
+  type BatchCampaignConfig,
+  type BatchCampaignInput,
+  type BatchSharedCreative,
+} from "./batch.js";

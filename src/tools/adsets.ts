@@ -74,14 +74,42 @@ export function validateGeoRadius(
 export function validatePromotedObjectConstraints(
   optimization_goal: string,
   promoted_object: Record<string, unknown> | undefined,
-): string | null {
+): { field: string; message: string } | null {
   if (
     optimization_goal === "EVENT_RESPONSES" &&
     promoted_object?.["event_id"]
   ) {
-    return "EVENT_RESPONSES optimization does not support promoted_object.event_id. Event linking goes in the ad creative link_data URL, not the ad set.";
+    return {
+      field: "promoted_object.event_id",
+      message:
+        "EVENT_RESPONSES optimization does not support promoted_object.event_id. Event linking goes in the ad creative link_data URL, not the ad set.",
+    };
   }
   return null;
+}
+
+export function validateCboBudgetConstraint(
+  campaign: { daily_budget?: string; lifetime_budget?: string },
+  adsetBudget: { daily_budget?: number; lifetime_budget?: number },
+): string | null {
+  const adsetBudgetProvided =
+    adsetBudget.daily_budget !== undefined ||
+    adsetBudget.lifetime_budget !== undefined;
+  if (!adsetBudgetProvided) {
+    return null;
+  }
+
+  const campaignHasBudget =
+    campaign.daily_budget !== undefined && campaign.daily_budget !== null
+      ? true
+      : campaign.lifetime_budget !== undefined &&
+        campaign.lifetime_budget !== null;
+
+  if (!campaignHasBudget) {
+    return null;
+  }
+
+  return "Parent campaign appears to use campaign budget optimization (CBO). Do not set daily_budget/lifetime_budget on the ad set. Remove ad set budget fields and manage budget at campaign level.";
 }
 
 import { z } from "zod";
@@ -386,12 +414,12 @@ Returns:
           targeting: sourceAdSet.targeting,
           status: status ?? "PAUSED",
           daily_budget: copyBudget
-            ? sourceAdSet.daily_budget
+            ? sourceAdSet.daily_budget != null
               ? Number(sourceAdSet.daily_budget)
               : undefined
             : undefined,
           lifetime_budget: copyBudget
-            ? sourceAdSet.lifetime_budget
+            ? sourceAdSet.lifetime_budget != null
               ? Number(sourceAdSet.lifetime_budget)
               : undefined
             : undefined,
@@ -473,10 +501,22 @@ Returns:
           client.getAdSetDetails(source_adset_id),
           client.getAdSetDetails(target_adset_id),
         ]);
+        const normalizedSourceAdSet: Record<string, unknown> = {
+          ...(sourceAdSet as unknown as Record<string, unknown>),
+          pacing_type: normalizeAdSetPacingType(
+            (sourceAdSet as unknown as Record<string, unknown>)["pacing_type"],
+          ),
+        };
+        const normalizedTargetAdSet: Record<string, unknown> = {
+          ...(targetAdSet as unknown as Record<string, unknown>),
+          pacing_type: normalizeAdSetPacingType(
+            (targetAdSet as unknown as Record<string, unknown>)["pacing_type"],
+          ),
+        };
 
         const compareResult = compareEntities(
-          sourceAdSet as unknown as Record<string, unknown>,
-          targetAdSet as unknown as Record<string, unknown>,
+          normalizedSourceAdSet,
+          normalizedTargetAdSet,
           {
             ignoreFields: [
               ...DEFAULT_ADSET_COMPARE_IGNORE_FIELDS,
@@ -514,8 +554,8 @@ Args:
   - billing_event (string, required): Billing event type. Options: IMPRESSIONS, LINK_CLICKS, OFFER_CLAIMS, PAGE_LIKES, POST_ENGAGEMENT, THRUPLAY
   - targeting (object, required): Targeting specification object with geo_locations, age_min, age_max, genders, interests, behaviors, etc. Note: When using Advantage+ audience (targeting.targeting_automation.advantage_audience = 1 or omitted), age_max must be 65. Meta rejects age_max < 65 with "Maximum age is below threshold". For restrictive age targeting, set targeting_automation.advantage_audience = 0. Geo radius limits: geo_locations.cities radius 10–50 mi (17–80 km); geo_locations.custom_locations radius 0.63–50 mi (1–80 km).
   - status (string, optional): Initial ad set status - ACTIVE or PAUSED (default: PAUSED)
-  - daily_budget (number, optional): Daily budget in cents (e.g., 1000 = $10.00). Required if lifetime_budget not provided.
-  - lifetime_budget (number, optional): Lifetime budget in cents (e.g., 10000 = $100.00). Required if daily_budget not provided.
+  - daily_budget (number, optional): Daily budget in cents (e.g., 1000 = $10.00). Use for ad set budget optimization (ABO). Do not send when parent campaign uses campaign budget optimization (CBO).
+  - lifetime_budget (number, optional): Lifetime budget in cents (e.g., 10000 = $100.00). Use for ABO. Do not send when parent campaign uses CBO.
   - bid_amount (number, optional): Bid amount in cents (required for some optimization goals)
   - bid_strategy (string, optional): Bid strategy. Options: LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, TARGET_COST
   - start_time (string, optional): Start time in ISO 8601 format (e.g., "2025-01-01T00:00:00+0000")
@@ -620,6 +660,25 @@ Errors:
       ) => {
         const normalizedId = normalizeAccountId(account_id);
 
+        if (daily_budget !== undefined || lifetime_budget !== undefined) {
+          try {
+            const campaign = await client.getCampaignDetails(campaign_id, [
+              "id",
+              "daily_budget",
+              "lifetime_budget",
+            ]);
+            const cboBudgetErr = validateCboBudgetConstraint(campaign, {
+              daily_budget,
+              lifetime_budget,
+            });
+            if (cboBudgetErr) {
+              return createErrorResponse(new Error(cboBudgetErr), format);
+            }
+          } catch {
+            // Best-effort guardrail: if lookup fails, continue with Meta API validation.
+          }
+        }
+
         const err = validateAdvantageAgeConstraint(
           targeting as Record<string, unknown>,
         );
@@ -643,9 +702,7 @@ Errors:
           optimization_goal,
           promoted_object as Record<string, unknown> | undefined,
         );
-        if (promotedErr) {
-          return createErrorResponse(new Error(promotedErr), format);
-        }
+        const warnings = promotedErr ? [promotedErr] : [];
 
         const result = await client.createAdSet(normalizedId, {
           name,
@@ -670,6 +727,7 @@ Errors:
           {
             adset_id: result.id,
             message: `Ad set "${name}" created successfully`,
+            warnings,
           },
           format,
         );

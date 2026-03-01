@@ -361,6 +361,46 @@ function buildCompactPayload(
   return compact;
 }
 
+const BUDGET_KEYS = [
+  "daily_budget",
+  "lifetime_budget",
+  "budget_remaining",
+] as const;
+
+function formatCentsAsDollars(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const num =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : Number.NaN;
+  if (Number.isNaN(num)) return null;
+  return `$${(num / 100).toFixed(2)}`;
+}
+
+function augmentBudgetFormatted(value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+  if (Array.isArray(value)) {
+    return value.map(augmentBudgetFormatted);
+  }
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(obj)) {
+      out[key] = augmentBudgetFormatted(val);
+      if (BUDGET_KEYS.includes(key as (typeof BUDGET_KEYS)[number])) {
+        const formatted = formatCentsAsDollars(val);
+        if (formatted !== null) {
+          out[`${key}_formatted`] = formatted;
+        }
+      }
+    }
+    return out;
+  }
+  return value;
+}
+
 /**
  * Creates a standardized success response for MCP tools.
  *
@@ -376,7 +416,8 @@ export function createSuccessResponse(
   data: Record<string, unknown>,
   format: ResponseFormat = "json",
 ): ToolResponse {
-  const responseData = { success: true, ...data };
+  const augmented = augmentBudgetFormatted(data) as Record<string, unknown>;
+  const responseData = { success: true, ...augmented };
   const maxSizeBytes = getMaxResponseBytes();
   const buildText = (payload: Record<string, unknown>): string =>
     format === "markdown"
@@ -501,10 +542,21 @@ function extractErrorInfo(error: unknown): ErrorInfo {
   return { message: String(error) };
 }
 
+const RETRY_HINT =
+  "This error is independent; parallel tool calls may have succeeded. Check individual results.";
+
+const APP_DEV_MODE_CODE = 1885183;
+const APP_DEV_MODE_MESSAGE =
+  "App is in development mode. Meta blocks ad creative creation until the app is live. You can create campaigns and ad sets.";
+
 /** Builds a structured details object from a MetaApiError. */
 function buildMetaErrorDetails(error: MetaApiError): Record<string, unknown> {
+  const message =
+    error.code === APP_DEV_MODE_CODE
+      ? APP_DEV_MODE_MESSAGE
+      : error.userMessage || error.message;
   const details: Record<string, unknown> = {
-    message: error.userMessage || error.message,
+    message,
     code: error.code,
     type: error.type,
     is_transient: error.isTransient,
@@ -514,6 +566,9 @@ function buildMetaErrorDetails(error: MetaApiError): Record<string, unknown> {
   if (error.subcode) details["subcode"] = error.subcode;
   if (error.blameField) details["blame_field"] = error.blameField;
   if (error.fbtrace_id) details["fbtrace_id"] = error.fbtrace_id;
+  if (!error.isTransient && !error.isRetryable) {
+    details["retry_hint"] = RETRY_HINT;
+  }
   return details;
 }
 
@@ -527,6 +582,7 @@ function metaErrorToMarkdown(
     : "✗ **Error**";
   let text = `${heading}\n\n${details["message"]}\n\n**Code:** ${error.code}`;
   if (error.blameField) text += `\n**Field:** ${error.blameField}`;
+  if (details["retry_hint"]) text += `\n\n**Hint:** ${details["retry_hint"]}`;
   return text;
 }
 

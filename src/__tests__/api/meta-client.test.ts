@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MetaAuth } from "../../api/auth.js";
 import { AuthenticationError, MetaApiError } from "../../api/error-handling.js";
@@ -10,6 +11,11 @@ import {
 // Mock global fetch
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
+
+// Mock fs.readFile for uploadAdImage filePath tests
+vi.mock("node:fs/promises", () => ({
+  readFile: vi.fn(),
+}));
 
 // Mock console.error to avoid test output noise
 vi.spyOn(console, "error").mockImplementation(() => {});
@@ -212,6 +218,7 @@ describe("MetaClient", () => {
           objective: "OUTCOME_SALES",
           status: "PAUSED",
           special_ad_categories: [],
+          bid_strategy: "LOWEST_COST_WITHOUT_CAP",
         }),
       );
     });
@@ -330,6 +337,114 @@ describe("MetaClient", () => {
 
       const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
       expect(calledUrl).toContain("fields=id%2Cname");
+    });
+  });
+
+  describe("getCustomAudiences", () => {
+    it("should fetch custom audiences for an account", async () => {
+      const mockData = {
+        data: [{ id: "ca_1", name: "Purchasers" }],
+      };
+      mockFetch.mockResolvedValue(createMockResponse({ body: mockData }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      const result = await client.getCustomAudiences("act_123");
+
+      expect(result).toEqual(mockData);
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("/act_123/customaudiences");
+      expect(calledUrl).toContain("summary=true");
+    });
+
+    it("should pass cursor pagination params", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getCustomAudiences("act_123", {
+        after: "after_cursor",
+        before: "before_cursor",
+      });
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("after=after_cursor");
+      expect(calledUrl).toContain("before=before_cursor");
+    });
+
+    it("should allow overriding returned fields", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getCustomAudiences("act_123", { fields: ["id", "name"] });
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("fields=id%2Cname");
+    });
+  });
+
+  describe("createCustomAudience", () => {
+    it("should create custom audience with required fields", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { id: "ca_123" } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      const result = await client.createCustomAudience("act_123", {
+        name: "Purchasers 180d",
+      });
+
+      expect(result).toEqual({ id: "ca_123" });
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("/act_123/customaudiences");
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.name).toBe("Purchasers 180d");
+      expect(body.subtype).toBe("CUSTOM");
+    });
+
+    it("should include optional custom audience fields", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { id: "ca_123" } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.createCustomAudience("act_123", {
+        name: "Website Visitors",
+        subtype: "WEBSITE",
+        retention_days: 30,
+        rule: { event: { eq: "ViewContent" } },
+      });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.subtype).toBe("WEBSITE");
+      expect(body.retention_days).toBe(30);
+      expect(body.rule).toEqual({ event: { eq: "ViewContent" } });
+    });
+  });
+
+  describe("createLookalikeAudience", () => {
+    it("should create lookalike audience with source and spec", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { id: "la_123" } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      const result = await client.createLookalikeAudience("act_123", {
+        name: "LAL 1% Purchasers",
+        origin_audience_id: "ca_source_1",
+        lookalike_spec: { country: "US", ratio: 0.01 },
+      });
+
+      expect(result).toEqual({ id: "la_123" });
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("/act_123/customaudiences");
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.subtype).toBe("LOOKALIKE");
+      expect(body.origin_audience_id).toBe("ca_source_1");
+      expect(body.lookalike_spec).toEqual({ country: "US", ratio: 0.01 });
     });
   });
 
@@ -461,7 +576,7 @@ describe("MetaClient", () => {
       expect(body.bid_strategy).toBe("LOWEST_COST_WITHOUT_CAP");
     });
 
-    it("should not include bid_strategy when not provided", async () => {
+    it("should default bid_strategy to LOWEST_COST_WITHOUT_CAP when not provided", async () => {
       mockFetch.mockResolvedValue(createMockResponse({ body: { id: "123" } }));
 
       const client = new MetaClient({ accessToken: "token" });
@@ -472,7 +587,7 @@ describe("MetaClient", () => {
 
       const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
       const body = JSON.parse(options.body as string);
-      expect(body.bid_strategy).toBeUndefined();
+      expect(body.bid_strategy).toBe("LOWEST_COST_WITHOUT_CAP");
     });
 
     it("should pass start_time and stop_time when provided", async () => {
@@ -796,6 +911,177 @@ describe("MetaClient", () => {
       const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
       const body = JSON.parse(options.body as string);
       expect(body.pacing_type).toBe('["no_pacing"]');
+    });
+  });
+
+  describe("createAdCreative", () => {
+    it("should include object_story_spec by default", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { id: "creative_123" } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.createAdCreative("act_123", {
+        name: "Standard Creative",
+        object_story_spec: {
+          page_id: "123456",
+          link_data: { link: "https://example.com" },
+        },
+      });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.name).toBe("Standard Creative");
+      expect(body.object_story_spec).toEqual({
+        page_id: "123456",
+        link_data: { link: "https://example.com" },
+      });
+    });
+
+    it("should pass optional creative fields through to API", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { id: "creative_456" } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.createAdCreative("act_123", {
+        name: "Dynamic Creative",
+        asset_feed_spec: {
+          bodies: [{ text: "Variant A" }],
+          images: [{ hash: "abc123" }],
+        },
+        url_tags: "utm_source=facebook&utm_campaign=test",
+        instagram_actor_id: "17840000000000000",
+        degrees_of_freedom_spec: { creative_features_spec: {} },
+        applink_treatment: "web_only",
+      });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.name).toBe("Dynamic Creative");
+      expect(body.object_story_spec).toBeUndefined();
+      expect(body.asset_feed_spec).toEqual({
+        bodies: [{ text: "Variant A" }],
+        images: [{ hash: "abc123" }],
+      });
+      expect(body.url_tags).toBe("utm_source=facebook&utm_campaign=test");
+      expect(body.instagram_actor_id).toBe("17840000000000000");
+      expect(body.degrees_of_freedom_spec).toEqual({
+        creative_features_spec: {},
+      });
+      expect(body.applink_treatment).toBe("web_only");
+    });
+  });
+
+  describe("updateAdSet", () => {
+    it("should pass promoted_object when provided", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { success: true } }),
+      );
+
+      const samplePromotedObject = {
+        pixel_id: "pixel_456",
+        custom_event_type: "PURCHASE",
+      };
+      const client = new MetaClient({ accessToken: "token" });
+      await client.updateAdSet("adset_123", {
+        promoted_object: samplePromotedObject,
+      });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.promoted_object).toBe(JSON.stringify(samplePromotedObject));
+    });
+
+    it("should not include promoted_object when not provided", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { success: true } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.updateAdSet("adset_123", { name: "Updated Name" });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.promoted_object).toBeUndefined();
+    });
+  });
+
+  describe("uploadAdImage", () => {
+    it("should upload from URL and return image hash", async () => {
+      const imageBuffer = new Uint8Array([0x89, 0x50, 0x4e, 0x47]); // PNG magic bytes
+      mockFetch
+        .mockResolvedValueOnce(
+          new Response(imageBuffer, {
+            headers: { "Content-Type": "image/png" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          createMockResponse({
+            body: {
+              images: {
+                "image.png": {
+                  hash: "abc123hash",
+                  url: "https://cdn.example.com/abc123",
+                },
+              },
+            },
+          }),
+        );
+
+      const client = new MetaClient({ accessToken: "token" });
+      const result = await client.uploadAdImage("act_123", {
+        url: "https://example.com/image.png",
+      });
+
+      expect(result).toEqual({
+        image_hash: "abc123hash",
+        filename: "image.png",
+      });
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("should upload from file path and return image hash", async () => {
+      vi.mocked(readFile).mockResolvedValue(
+        Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+      );
+      mockFetch.mockResolvedValue(
+        createMockResponse({
+          body: {
+            images: {
+              "banner.png": { hash: "def456hash" },
+            },
+          },
+        }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      const result = await client.uploadAdImage("act_123", {
+        filePath: "/tmp/banner.png",
+      });
+
+      expect(result).toEqual({
+        image_hash: "def456hash",
+        filename: "banner.png",
+      });
+      expect(readFile).toHaveBeenCalledWith("/tmp/banner.png");
+    });
+
+    it("should throw when neither filePath nor url provided", async () => {
+      const client = new MetaClient({ accessToken: "token" });
+      await expect(client.uploadAdImage("act_123", {})).rejects.toThrow(
+        "Either filePath or url is required",
+      );
+    });
+
+    it("should throw when both filePath and url provided", async () => {
+      const client = new MetaClient({ accessToken: "token" });
+      await expect(
+        client.uploadAdImage("act_123", {
+          filePath: "/tmp/x.png",
+          url: "https://example.com/x.png",
+        }),
+      ).rejects.toThrow("Provide filePath or url, not both");
     });
   });
 

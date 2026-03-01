@@ -158,7 +158,7 @@ async function resolveBatchConfigInput(
     );
   }
   const rel = relative(baseReal, configReal);
-  if (rel.startsWith("..") || rel === "..") {
+  if (rel.startsWith("..") || rel === ".." || isAbsolute(rel)) {
     throw new Error(
       `config_path must be within the working directory (${baseReal}). Resolved path: ${configReal}`,
     );

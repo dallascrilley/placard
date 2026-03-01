@@ -311,38 +311,35 @@ async function executePhaseUpdateCalls(
     error?: string;
   }>;
 }> {
-  const settled = await Promise.allSettled(
-    phaseCalls.map((call) =>
-      client.updateCampaign(call.args.campaign_id, {
+  const results: Array<{
+    phase: string;
+    effective_date: string;
+    campaign_id: string;
+    success: boolean;
+    error?: string;
+  }> = [];
+
+  for (const call of phaseCalls) {
+    const base = {
+      phase: call.phase,
+      effective_date: call.effective_date,
+      campaign_id: call.args.campaign_id,
+    };
+    try {
+      await client.updateCampaign(call.args.campaign_id, {
         daily_budget: call.args.daily_budget,
         lifetime_budget: call.args.lifetime_budget,
         spend_cap: call.args.spend_cap,
-      }),
-    ),
-  );
-
-  const results = settled.map((entry, index) => {
-    const call = phaseCalls[index];
-    const base = {
-      phase: call?.phase ?? "unknown",
-      effective_date: call?.effective_date ?? "unknown",
-      campaign_id: call?.args.campaign_id ?? "unknown",
-    };
-    if (entry.status === "fulfilled") {
-      return {
+      });
+      results.push({ ...base, success: true });
+    } catch (error) {
+      results.push({
         ...base,
-        success: true,
-      };
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
-    return {
-      ...base,
-      success: false,
-      error:
-        entry.reason instanceof Error
-          ? entry.reason.message
-          : String(entry.reason),
-    };
-  });
+  }
 
   const succeeded = results.filter((result) => result.success).length;
   return {
@@ -357,7 +354,7 @@ async function loadCampaignBudgetSnapshots(
   client: MetaClient,
   campaignIds: string[],
 ): Promise<Record<string, CampaignBudgetSnapshot>> {
-  const details = await Promise.all(
+  const settled = await Promise.allSettled(
     campaignIds.map((campaignId) =>
       client.getCampaignDetails(campaignId, [
         "id",
@@ -370,7 +367,16 @@ async function loadCampaignBudgetSnapshots(
   );
 
   const snapshots: Record<string, CampaignBudgetSnapshot> = {};
-  for (const campaign of details) {
+  for (const [index, entry] of settled.entries()) {
+    if (entry.status === "rejected") {
+      const campaignId = campaignIds[index];
+      console.warn(
+        `Could not load campaign ${campaignId} for budget comparison:`,
+        entry.reason,
+      );
+      continue;
+    }
+    const campaign = entry.value;
     const campaignData = campaign as unknown as Record<string, unknown>;
     const campaignId = readStringField(campaignData, "id");
     if (!campaignId) {

@@ -109,6 +109,7 @@ import {
   targetingSchema,
   userIdSchema,
 } from "../schemas/index.js";
+import { compareEntities } from "../utils/entity-compare.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
 import { withToolHandler } from "../utils/tool-handler.js";
 import {
@@ -116,6 +117,15 @@ import {
   createSuccessResponse,
   enhancePagination,
 } from "../utils/tool-responses.js";
+
+const DEFAULT_ADSET_COMPARE_IGNORE_FIELDS = [
+  "id",
+  "campaign_id",
+  "created_time",
+  "updated_time",
+  "effective_status",
+  "budget_remaining",
+];
 
 export function registerAdSetTools(server: McpServer): void {
   /**
@@ -268,6 +278,208 @@ Errors:
 
       return createSuccessResponse({ adset }, format);
     }),
+  );
+
+  /**
+   * Duplicate an ad set into a target campaign
+   */
+  server.tool(
+    "meta_duplicate_adset",
+    `Duplicate an ad set into a target campaign.
+
+Copies ad set configuration from a source ad set and creates a new ad set in the specified account/campaign. This is useful for cloning reference ad sets into MCP-created campaign structures.
+
+Args:
+  - source_adset_id (string, required): Ad set ID to copy from
+  - target_account_id (string, required): Destination ad account ID (with or without 'act_' prefix)
+  - target_campaign_id (string, required): Destination campaign ID for new ad set
+  - name (string, optional): Name for duplicated ad set (default: source name + " (Copy)")
+  - status (string, optional): Initial status for duplicated ad set - ACTIVE or PAUSED (default: PAUSED)
+  - copy_budget (boolean, optional): Copy source daily/lifetime budget values (default: true)
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')
+
+Returns:
+  {
+    "success": true,
+    "adset_id": "999888777",
+    "source_adset_id": "123456789",
+    "target_campaign_id": "987654321",
+    "message": "Ad set duplicated successfully"
+  }`,
+    {
+      source_adset_id: z.string().describe("Ad set ID to duplicate"),
+      target_account_id: accountIdSchema,
+      target_campaign_id: z.string().describe("Destination campaign ID"),
+      name: z.string().min(1).optional().describe("Name for duplicated ad set"),
+      status: z
+        .enum(["ACTIVE", "PAUSED"])
+        .optional()
+        .describe("Initial status for duplicated ad set (default: PAUSED)"),
+      copy_budget: z
+        .boolean()
+        .optional()
+        .describe("Copy source daily/lifetime budget values (default: true)"),
+      user_id: userIdSchema,
+      response_format: responseFormatSchema,
+    },
+    CREATE_ANNOTATIONS,
+    withToolHandler(
+      async (
+        {
+          source_adset_id,
+          target_account_id,
+          target_campaign_id,
+          name,
+          status,
+          copy_budget,
+        },
+        { client, format },
+      ) => {
+        const sourceAdSet = await client.getAdSetDetails(source_adset_id, [
+          "id",
+          "name",
+          "optimization_goal",
+          "billing_event",
+          "targeting",
+          "daily_budget",
+          "lifetime_budget",
+          "bid_amount",
+          "bid_strategy",
+          "start_time",
+          "end_time",
+          "promoted_object",
+          "destination_type",
+          "is_dynamic_creative",
+          "pacing_type",
+        ]);
+        const sourceAdSetRecord = sourceAdSet as unknown as Record<
+          string,
+          unknown
+        >;
+        const normalizedTargetId = normalizeAccountId(target_account_id);
+        const copyBudget = copy_budget ?? true;
+        const rawPacingType = sourceAdSetRecord["pacing_type"];
+        const pacingType = Array.isArray(rawPacingType)
+          ? rawPacingType[0]
+          : rawPacingType;
+
+        const result = await client.createAdSet(normalizedTargetId, {
+          name: name ?? `${sourceAdSet.name} (Copy)`,
+          campaign_id: target_campaign_id,
+          optimization_goal: sourceAdSet.optimization_goal,
+          billing_event: sourceAdSet.billing_event,
+          targeting: sourceAdSet.targeting,
+          status: status ?? "PAUSED",
+          daily_budget: copyBudget
+            ? sourceAdSet.daily_budget
+              ? Number(sourceAdSet.daily_budget)
+              : undefined
+            : undefined,
+          lifetime_budget: copyBudget
+            ? sourceAdSet.lifetime_budget
+              ? Number(sourceAdSet.lifetime_budget)
+              : undefined
+            : undefined,
+          bid_amount: sourceAdSet.bid_amount,
+          bid_strategy: sourceAdSet.bid_strategy,
+          start_time: sourceAdSet.start_time,
+          end_time: sourceAdSet.end_time,
+          promoted_object: sourceAdSet.promoted_object,
+          destination_type: sourceAdSetRecord["destination_type"] as
+            | string
+            | undefined,
+          is_dynamic_creative: sourceAdSetRecord["is_dynamic_creative"] as
+            | boolean
+            | undefined,
+          pacing_type: pacingType as string | undefined,
+        });
+
+        return createSuccessResponse(
+          {
+            adset_id: result.id,
+            source_adset_id,
+            target_campaign_id,
+            target_account_id: normalizedTargetId,
+            message: "Ad set duplicated successfully",
+          },
+          format,
+        );
+      },
+    ),
+  );
+
+  /**
+   * Compare two ad sets and return field-level differences
+   */
+  server.tool(
+    "meta_compare_adsets",
+    `Compare two ad sets and return field-level differences.
+
+Fetches both ad sets, normalizes nested values, and reports exact field differences. Useful for validating generated ad sets against reference ad sets.
+
+Args:
+  - source_adset_id (string, required): Reference ad set ID
+  - target_adset_id (string, required): Ad set ID to compare against reference
+  - ignore_fields (array[string], optional): Additional field paths to ignore
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')
+
+Returns:
+  {
+    "success": true,
+    "match": false,
+    "source_adset_id": "123",
+    "target_adset_id": "456",
+    "summary": {
+      "total_compared_fields": 24,
+      "matched_fields": 21,
+      "different_fields": 3,
+      "missing_in_source": 0,
+      "missing_in_target": 0
+    },
+    "differences": []
+  }`,
+    {
+      source_adset_id: z.string().describe("Reference ad set ID"),
+      target_adset_id: z.string().describe("Ad set ID to compare"),
+      ignore_fields: z
+        .array(z.string().min(1))
+        .optional()
+        .describe("Additional field paths to ignore in comparison"),
+      user_id: userIdSchema,
+      response_format: responseFormatSchema,
+    },
+    READ_ONLY_ANNOTATIONS,
+    withToolHandler(
+      async (
+        { source_adset_id, target_adset_id, ignore_fields },
+        { client, format },
+      ) => {
+        const [sourceAdSet, targetAdSet] = await Promise.all([
+          client.getAdSetDetails(source_adset_id),
+          client.getAdSetDetails(target_adset_id),
+        ]);
+
+        const compareResult = compareEntities(
+          sourceAdSet as unknown as Record<string, unknown>,
+          targetAdSet as unknown as Record<string, unknown>,
+          {
+            ignoreFields: [
+              ...DEFAULT_ADSET_COMPARE_IGNORE_FIELDS,
+              ...(ignore_fields ?? []),
+            ],
+          },
+        );
+
+        return createSuccessResponse(
+          {
+            source_adset_id,
+            target_adset_id,
+            ...compareResult,
+          },
+          format,
+        );
+      },
+    ),
   );
 
   /**

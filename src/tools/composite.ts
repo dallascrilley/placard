@@ -7,6 +7,7 @@
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import type { MetaClient } from "../api/meta-client.js";
 import { READ_ONLY_ANNOTATIONS } from "../constants/index.js";
 import {
   accountIdSchema,
@@ -14,9 +15,362 @@ import {
   userIdSchema,
 } from "../schemas/index.js";
 import type { ReachEstimate } from "../types/meta-api.js";
+import { compareEntities } from "../utils/entity-compare.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
 import { withToolHandler } from "../utils/tool-handler.js";
 import { createSuccessResponse } from "../utils/tool-responses.js";
+
+const DEFAULT_TREE_COMPARE_IGNORE_FIELDS = [
+  "id",
+  "created_time",
+  "updated_time",
+  "effective_status",
+  "budget_remaining",
+  "campaign_id",
+  "adset_id",
+  "creative.id",
+];
+
+interface PairingCandidate {
+  source?: Record<string, unknown>;
+  target?: Record<string, unknown>;
+}
+interface PairedEntity extends PairingCandidate {
+  key: string;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function shouldIgnorePath(path: string, ignoreFields: Set<string>): boolean {
+  for (const field of ignoreFields) {
+    if (path === field || path.startsWith(`${field}.`)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function pruneForSignature(
+  value: unknown,
+  ignoreFields: Set<string>,
+  path = "",
+): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => pruneForSignature(item, ignoreFields, path));
+  }
+
+  if (isPlainObject(value)) {
+    const output: Record<string, unknown> = {};
+    const keys = Object.keys(value).sort();
+
+    for (const key of keys) {
+      const nextPath = path ? `${path}.${key}` : key;
+      if (shouldIgnorePath(nextPath, ignoreFields)) {
+        continue;
+      }
+      output[key] = pruneForSignature(value[key], ignoreFields, nextPath);
+    }
+
+    return output;
+  }
+
+  return value;
+}
+
+function stableValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => stableValue(item));
+  }
+
+  if (isPlainObject(value)) {
+    const keys = Object.keys(value).sort();
+    const sorted: Record<string, unknown> = {};
+    for (const key of keys) {
+      sorted[key] = stableValue(value[key]);
+    }
+    return sorted;
+  }
+
+  return value;
+}
+
+function stableStringify(value: unknown): string {
+  return JSON.stringify(stableValue(value));
+}
+
+function getEntityName(entity: Record<string, unknown>): string {
+  const name = entity["name"];
+  return typeof name === "string" ? name : "";
+}
+
+function calculateComparisonScore(
+  source: Record<string, unknown>,
+  target: Record<string, unknown>,
+  ignoreFields: string[],
+): number {
+  const compared = compareEntities(source, target, { ignoreFields });
+  const namePenalty = getEntityName(source) === getEntityName(target) ? 0 : 1;
+  return (
+    compared.summary.different_fields +
+    compared.summary.missing_in_source +
+    compared.summary.missing_in_target +
+    namePenalty
+  );
+}
+
+function getEntityId(entity: Record<string, unknown> | undefined): string {
+  if (!entity) return "";
+  const id = entity["id"];
+  return typeof id === "string" ? id : "";
+}
+
+function groupAdsByAdSetId(
+  ads: Record<string, unknown>[],
+): Map<string, Record<string, unknown>[]> {
+  const grouped = new Map<string, Record<string, unknown>[]>();
+  for (const ad of ads) {
+    const adSetId = ad["adset_id"];
+    const key = typeof adSetId === "string" ? adSetId : "__unknown__";
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.push(ad);
+    } else {
+      grouped.set(key, [ad]);
+    }
+  }
+  return grouped;
+}
+
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: matching heuristics intentionally evaluate multiple candidate dimensions
+function pairEntitiesForComparison(
+  sourceItems: Record<string, unknown>[],
+  targetItems: Record<string, unknown>[],
+  ignoreFields: string[],
+): PairedEntity[] {
+  const ignoreForSignature = new Set([...ignoreFields, "name"]);
+  const remainingTargets = targetItems.map((target) => ({
+    target,
+    used: false,
+  }));
+  const pairs: PairingCandidate[] = [];
+
+  for (const source of sourceItems) {
+    const sourceSignature = stableStringify(
+      pruneForSignature(source, ignoreForSignature),
+    );
+
+    let bestIndex = -1;
+    let bestScore = Number.POSITIVE_INFINITY;
+
+    for (let i = 0; i < remainingTargets.length; i += 1) {
+      const candidate = remainingTargets[i];
+      if (candidate?.used || !candidate?.target) {
+        continue;
+      }
+
+      const targetSignature = stableStringify(
+        pruneForSignature(candidate.target, ignoreForSignature),
+      );
+      const signaturePenalty = sourceSignature === targetSignature ? 0 : 2;
+      const score =
+        calculateComparisonScore(source, candidate.target, ignoreFields) +
+        signaturePenalty;
+
+      if (score < bestScore) {
+        bestScore = score;
+        bestIndex = i;
+      }
+    }
+
+    if (bestIndex >= 0) {
+      const matched = remainingTargets[bestIndex];
+      if (matched?.target) {
+        matched.used = true;
+        pairs.push({ source, target: matched.target });
+      } else {
+        pairs.push({ source });
+      }
+    } else {
+      pairs.push({ source });
+    }
+  }
+
+  for (const remaining of remainingTargets) {
+    if (!remaining.used && remaining.target) {
+      pairs.push({ target: remaining.target });
+    }
+  }
+
+  const keyedPairs = new Map<string, number>();
+  return pairs.map((pair) => {
+    const sourceName = pair.source ? getEntityName(pair.source) : "";
+    const targetName = pair.target ? getEntityName(pair.target) : "";
+    const sourceId =
+      pair.source && typeof pair.source["id"] === "string"
+        ? (pair.source["id"] as string)
+        : "";
+    const targetId =
+      pair.target && typeof pair.target["id"] === "string"
+        ? (pair.target["id"] as string)
+        : "";
+    const baseKey =
+      sourceName || targetName || sourceId || targetId || "entity";
+    const index = (keyedPairs.get(baseKey) ?? 0) + 1;
+    keyedPairs.set(baseKey, index);
+
+    const key = index > 1 ? `${baseKey}#${index}` : baseKey;
+    return { ...pair, key } satisfies PairedEntity;
+  });
+}
+
+async function fetchAllAdSetsForCampaign(
+  client: MetaClient,
+  accountId: string,
+  campaignId: string,
+): Promise<Record<string, unknown>[]> {
+  const results: Record<string, unknown>[] = [];
+  const seenCursors = new Set<string>();
+  let after: string | undefined;
+
+  while (true) {
+    const response = await client.getAdSets(accountId, {
+      campaign_id: campaignId,
+      limit: 100,
+      after,
+    });
+    results.push(...(response.data as unknown as Record<string, unknown>[]));
+
+    const nextCursor = response.paging?.cursors?.after;
+    if (!response.paging?.next || !nextCursor || seenCursors.has(nextCursor)) {
+      break;
+    }
+    seenCursors.add(nextCursor);
+    after = nextCursor;
+  }
+
+  return results;
+}
+
+async function fetchAllAdsForCampaign(
+  client: MetaClient,
+  campaignId: string,
+): Promise<Record<string, unknown>[]> {
+  const results: Record<string, unknown>[] = [];
+  const seenCursors = new Set<string>();
+  let after: string | undefined;
+
+  while (true) {
+    const response = await client.getCampaignAds(campaignId, {
+      limit: 100,
+      after,
+      fields: [
+        "id",
+        "name",
+        "adset_id",
+        "campaign_id",
+        "status",
+        "effective_status",
+        "creative{id,body,title}",
+      ],
+    });
+    results.push(...(response.data as unknown as Record<string, unknown>[]));
+
+    const nextCursor = response.paging?.cursors?.after;
+    if (!response.paging?.next || !nextCursor || seenCursors.has(nextCursor)) {
+      break;
+    }
+    seenCursors.add(nextCursor);
+    after = nextCursor;
+  }
+
+  return results;
+}
+
+function countStatus<T extends string>(items: T[], target: T): number {
+  return items.filter((item) => item === target).length;
+}
+
+function buildPairwiseComparisons(
+  items: Record<string, unknown>[],
+  targets: Record<string, unknown>[],
+  ignoreFields: string[],
+) {
+  const pairs = pairEntitiesForComparison(items, targets, ignoreFields);
+  const comparisons = pairs.map((pair) => {
+    if (!pair.source) {
+      return {
+        key: pair.key,
+        match: false,
+        status: "missing_in_source" as const,
+        summary: {
+          total_compared_fields: 0,
+          matched_fields: 0,
+          different_fields: 0,
+          missing_in_source: 1,
+          missing_in_target: 0,
+        },
+        differences: [],
+      };
+    }
+
+    if (!pair.target) {
+      return {
+        key: pair.key,
+        match: false,
+        status: "missing_in_target" as const,
+        summary: {
+          total_compared_fields: 0,
+          matched_fields: 0,
+          different_fields: 0,
+          missing_in_source: 0,
+          missing_in_target: 1,
+        },
+        differences: [],
+      };
+    }
+
+    const compared = compareEntities(pair.source, pair.target, {
+      ignoreFields,
+    });
+    return {
+      key: pair.key,
+      match: compared.match,
+      status: compared.match ? "match" : "different",
+      summary: compared.summary,
+      differences: compared.differences,
+    };
+  });
+
+  const statuses = comparisons.map((comparison) => comparison.status);
+  return {
+    comparisons,
+    pairs,
+    matched: countStatus(statuses, "match"),
+    missingInSource: countStatus(statuses, "missing_in_source"),
+    missingInTarget: countStatus(statuses, "missing_in_target"),
+    different: countStatus(statuses, "different"),
+  };
+}
+
+function filterComparisons<T extends { match: boolean }>(
+  comparisons: T[],
+  includeMatches: boolean,
+): T[] {
+  if (includeMatches) {
+    return comparisons;
+  }
+  return comparisons.filter((item) => !item.match);
+}
+
+function toRecordArray(items: unknown[]): Record<string, unknown>[] {
+  return items.filter(isPlainObject) as Record<string, unknown>[];
+}
+
+function mergeIgnoreFields(ignoreFields: string[] | undefined): string[] {
+  return [...DEFAULT_TREE_COMPARE_IGNORE_FIELDS, ...(ignoreFields ?? [])];
+}
 
 export function registerCompositeTools(server: McpServer): void {
   server.tool(
@@ -573,6 +927,239 @@ Args:
               checks,
               reach_estimate: reachEstimate,
             },
+          },
+          format,
+        );
+      },
+    ),
+  );
+
+  server.tool(
+    "meta_compare_campaign_trees",
+    `Compare two full campaign trees in a single call.
+
+Fetches campaign details, all ad sets, and all ads for both campaigns, then returns field-level diff summaries for campaign + child entities. This is designed for validating MCP/agent-created campaigns against known-good reference campaign trees.
+
+Args:
+  - source_campaign_id (string, required): Reference campaign ID
+  - target_campaign_id (string, required): Campaign ID to compare against reference
+  - source_account_id (string, required): Ad account ID containing the source campaign
+  - target_account_id (string, optional): Ad account ID containing the target campaign (default: source_account_id)
+  - ignore_fields (array[string], optional): Additional field paths to ignore in all comparisons
+  - include_matches (boolean, optional): Include matching child entities in output (default: false)
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')`,
+    {
+      source_campaign_id: z.string().describe("Reference campaign ID"),
+      target_campaign_id: z.string().describe("Campaign ID to compare"),
+      source_account_id: accountIdSchema,
+      target_account_id: accountIdSchema
+        .optional()
+        .describe("Target account ID (defaults to source_account_id)"),
+      ignore_fields: z
+        .array(z.string().min(1))
+        .optional()
+        .describe("Additional field paths to ignore in all comparisons"),
+      include_matches: z
+        .boolean()
+        .optional()
+        .describe("Include matching child entities in output (default: false)"),
+      user_id: userIdSchema,
+      response_format: responseFormatSchema,
+    },
+    READ_ONLY_ANNOTATIONS,
+    withToolHandler(
+      async (
+        {
+          source_campaign_id,
+          target_campaign_id,
+          source_account_id,
+          target_account_id,
+          ignore_fields,
+          include_matches,
+        },
+        { client, format },
+      ) => {
+        const normalizedSourceAccountId = normalizeAccountId(source_account_id);
+        const normalizedTargetAccountId = normalizeAccountId(
+          target_account_id ?? source_account_id,
+        );
+        const mergedIgnoreFields = mergeIgnoreFields(ignore_fields);
+
+        const [
+          sourceCampaign,
+          targetCampaign,
+          sourceAdSets,
+          targetAdSets,
+          sourceAds,
+          targetAds,
+        ] = await Promise.all([
+          client.getCampaignDetails(source_campaign_id),
+          client.getCampaignDetails(target_campaign_id),
+          fetchAllAdSetsForCampaign(
+            client,
+            normalizedSourceAccountId,
+            source_campaign_id,
+          ),
+          fetchAllAdSetsForCampaign(
+            client,
+            normalizedTargetAccountId,
+            target_campaign_id,
+          ),
+          fetchAllAdsForCampaign(client, source_campaign_id),
+          fetchAllAdsForCampaign(client, target_campaign_id),
+        ]);
+
+        const campaignComparison = compareEntities(
+          sourceCampaign as unknown as Record<string, unknown>,
+          targetCampaign as unknown as Record<string, unknown>,
+          { ignoreFields: mergedIgnoreFields },
+        );
+        const adSetComparisonResult = buildPairwiseComparisons(
+          toRecordArray(sourceAdSets),
+          toRecordArray(targetAdSets),
+          mergedIgnoreFields,
+        );
+        const sourceAdsRecords = toRecordArray(sourceAds);
+        const targetAdsRecords = toRecordArray(targetAds);
+        const sourceAdsByAdSet = groupAdsByAdSetId(sourceAdsRecords);
+        const targetAdsByAdSet = groupAdsByAdSetId(targetAdsRecords);
+        const consumedSourceAdSetIds = new Set<string>();
+        const consumedTargetAdSetIds = new Set<string>();
+
+        const adComparisons: Array<
+          (typeof adSetComparisonResult.comparisons)[number]
+        > = [];
+
+        let adMatched = 0;
+        let adMissingInSource = 0;
+        let adMissingInTarget = 0;
+        let adDifferent = 0;
+
+        for (const adSetPair of adSetComparisonResult.pairs) {
+          const sourceAdSetId = getEntityId(adSetPair.source);
+          const targetAdSetId = getEntityId(adSetPair.target);
+          if (sourceAdSetId) consumedSourceAdSetIds.add(sourceAdSetId);
+          if (targetAdSetId) consumedTargetAdSetIds.add(targetAdSetId);
+
+          const sourceGroup = sourceAdSetId
+            ? (sourceAdsByAdSet.get(sourceAdSetId) ?? [])
+            : [];
+          const targetGroup = targetAdSetId
+            ? (targetAdsByAdSet.get(targetAdSetId) ?? [])
+            : [];
+
+          const groupResult = buildPairwiseComparisons(
+            sourceGroup,
+            targetGroup,
+            mergedIgnoreFields,
+          );
+
+          adMatched += groupResult.matched;
+          adMissingInSource += groupResult.missingInSource;
+          adMissingInTarget += groupResult.missingInTarget;
+          adDifferent += groupResult.different;
+
+          for (const comparison of groupResult.comparisons) {
+            adComparisons.push({
+              ...comparison,
+              key: `${adSetPair.key}::${comparison.key}`,
+            });
+          }
+        }
+
+        // Any remaining ads are attached to ad sets that weren't present in paired ad set results.
+        for (const [sourceAdSetId, sourceGroup] of sourceAdsByAdSet.entries()) {
+          if (consumedSourceAdSetIds.has(sourceAdSetId)) continue;
+          const groupResult = buildPairwiseComparisons(
+            sourceGroup,
+            [],
+            mergedIgnoreFields,
+          );
+          adMatched += groupResult.matched;
+          adMissingInSource += groupResult.missingInSource;
+          adMissingInTarget += groupResult.missingInTarget;
+          adDifferent += groupResult.different;
+          for (const comparison of groupResult.comparisons) {
+            adComparisons.push({
+              ...comparison,
+              key: `orphan_source_adset_${sourceAdSetId}::${comparison.key}`,
+            });
+          }
+        }
+        for (const [targetAdSetId, targetGroup] of targetAdsByAdSet.entries()) {
+          if (consumedTargetAdSetIds.has(targetAdSetId)) continue;
+          const groupResult = buildPairwiseComparisons(
+            [],
+            targetGroup,
+            mergedIgnoreFields,
+          );
+          adMatched += groupResult.matched;
+          adMissingInSource += groupResult.missingInSource;
+          adMissingInTarget += groupResult.missingInTarget;
+          adDifferent += groupResult.different;
+          for (const comparison of groupResult.comparisons) {
+            adComparisons.push({
+              ...comparison,
+              key: `orphan_target_adset_${targetAdSetId}::${comparison.key}`,
+            });
+          }
+        }
+
+        const adComparisonResult = {
+          comparisons: adComparisons,
+          matched: adMatched,
+          missingInSource: adMissingInSource,
+          missingInTarget: adMissingInTarget,
+          different: adDifferent,
+        };
+
+        const includeMatchedEntities = include_matches === true;
+        const filteredAdSetComparisons = filterComparisons(
+          adSetComparisonResult.comparisons,
+          includeMatchedEntities,
+        );
+        const filteredAdComparisons = filterComparisons(
+          adComparisonResult.comparisons,
+          includeMatchedEntities,
+        );
+
+        const fullMatch =
+          campaignComparison.match &&
+          adSetComparisonResult.matched ===
+            adSetComparisonResult.comparisons.length &&
+          adComparisonResult.matched === adComparisonResult.comparisons.length;
+
+        return createSuccessResponse(
+          {
+            match: fullMatch,
+            source_campaign_id,
+            target_campaign_id,
+            source_account_id: normalizedSourceAccountId,
+            target_account_id: normalizedTargetAccountId,
+            summary: {
+              campaign_match: campaignComparison.match,
+              adsets: {
+                source_count: sourceAdSets.length,
+                target_count: targetAdSets.length,
+                compared: adSetComparisonResult.comparisons.length,
+                matched: adSetComparisonResult.matched,
+                different: adSetComparisonResult.different,
+                missing_in_source: adSetComparisonResult.missingInSource,
+                missing_in_target: adSetComparisonResult.missingInTarget,
+              },
+              ads: {
+                source_count: sourceAdsRecords.length,
+                target_count: targetAdsRecords.length,
+                compared: adComparisonResult.comparisons.length,
+                matched: adComparisonResult.matched,
+                different: adComparisonResult.different,
+                missing_in_source: adComparisonResult.missingInSource,
+                missing_in_target: adComparisonResult.missingInTarget,
+              },
+            },
+            campaign_comparison: campaignComparison,
+            adset_comparisons: filteredAdSetComparisons,
+            ad_comparisons: filteredAdComparisons,
           },
           format,
         );

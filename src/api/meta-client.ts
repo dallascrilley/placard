@@ -449,6 +449,7 @@ export class MetaClient {
       bid_amount?: number | undefined;
       bid_strategy?: string | undefined;
       pacing_type?: string | undefined;
+      promoted_object?: object | undefined;
     },
   ): Promise<{ success: boolean }> {
     const body: Record<string, unknown> = {};
@@ -465,6 +466,9 @@ export class MetaClient {
       body["bid_strategy"] = data.bid_strategy;
     if (data.pacing_type !== undefined)
       body["pacing_type"] = JSON.stringify([data.pacing_type]);
+    if (data.promoted_object !== undefined) {
+      body["promoted_object"] = JSON.stringify(data.promoted_object);
+    }
 
     return this.request<{ success: boolean }>(`/${adsetId}`, {
       method: "POST",

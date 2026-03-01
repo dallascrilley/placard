@@ -166,6 +166,10 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 
 ## Available Tools
 
+### Tool Summary
+
+**Total: 31 tools** across 8 categories
+
 ### Authentication (4 tools)
 
 | Tool | Description |
@@ -182,26 +186,28 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 | `meta_get_ad_accounts` | List accessible ad accounts |
 | `meta_get_account_info` | Get detailed account information |
 
-### Campaigns (5 tools)
+### Campaigns (6 tools)
 
 | Tool | Description |
 |------|-------------|
 | `meta_get_campaigns` | List campaigns with filtering |
 | `meta_get_campaign_copy` | Get deduplicated ad copy text for a campaign |
 | `meta_get_campaign_details` | Get campaign details |
-| `meta_create_campaign` | Create new campaign |
+| `meta_create_campaign` | Create new campaign (supports spend_cap, special_ad_category_country, promoted_object) |
 | `meta_update_campaign` | Update campaign settings |
+| `meta_delete_campaign` | Soft-delete a campaign |
 
-### Ad Sets (4 tools)
+### Ad Sets (5 tools)
 
 | Tool | Description |
 |------|-------------|
 | `meta_get_adsets` | List ad sets |
 | `meta_get_adset_details` | Get ad set details |
-| `meta_create_adset` | Create new ad set |
-| `meta_update_adset` | Update ad set settings |
+| `meta_create_adset` | Create new ad set (supports destination_type, is_dynamic_creative, pacing_type, enhanced validation) |
+| `meta_update_adset` | Update ad set settings (supports pacing_type, promoted_object) |
+| `meta_delete_adset` | Soft-delete an ad set |
 
-### Ads (4 tools)
+### Ads (5 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -209,6 +215,7 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 | `meta_get_ad_details` | Get ad details |
 | `meta_create_ad` | Create new ad |
 | `meta_update_ad` | Update ad settings |
+| `meta_delete_ad` | Soft-delete an ad |
 
 ### Creatives (2 tools)
 
@@ -234,12 +241,38 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 |------|-------------|
 | `meta_health_check` | Verify server and API connectivity |
 
+## Important Constraints & Validations
+
+### Advantage+ Audience
+- When using Advantage+ audience (`targeting.targeting_automation.advantage_audience = 1` or omitted), `age_max` must be **65**
+- For restrictive age targeting (age_max < 65), set `targeting_automation.advantage_audience = 0`
+
+### Geographic Targeting Radius Limits
+- **Cities** (`geo_locations.cities`): 10–50 miles (17–80 km)
+- **Custom locations** (`geo_locations.custom_locations`): 0.63–50 miles (1–80 km)
+
+### Special Ad Categories
+- When using `HOUSING`, `EMPLOYMENT`, `CREDIT`, or `ISSUES_ELECTIONS_POLITICS`, you **must** provide `special_ad_category_country` (array of ISO country codes, e.g., `['US']`)
+
+### Promoted Object Constraints
+- `EVENT_RESPONSES` optimization goal does **not** support `promoted_object.event_id`
+- Event linking for Event Response campaigns goes in the ad creative `link_data` URL, not the ad set
+
+### Campaign Budget Optimization (CBO)
+- If a campaign uses CBO (budget set at campaign level), ad sets must **not** have their own `daily_budget` or `lifetime_budget`
+
 ## Field Defaults
 
 - `meta_get_ad_creatives` defaults to slim fields: `id,name,body,thumbnail_url`.
 - Use the `fields` parameter to request full creative expansion when needed.
 - `meta_get_ad_details` supports nested field expansion passthrough (for example: `creative{id,body,title}`).
 - List tools support `response_format: "compact"` for token-efficient tabular output (`[headers, ...rows]`).
+
+## Documentation
+
+- **[Parameter Reference](docs/PARAMETERS.md)** - Detailed parameter documentation with examples
+- **[Runbooks](docs/runbooks/)** - Operational guides for deployment and OAuth setup
+- **[CHANGELOG](CHANGELOG.md)** - Version history and feature updates
 
 ## Development
 

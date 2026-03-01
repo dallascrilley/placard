@@ -147,3 +147,29 @@
 - Added 4 composite tools in `src/tools/composite.ts` and registered in `src/server.ts`.
 - Added regression coverage in `src/__tests__/tools/composite.test.ts` and updated server inventory expectations in `src/__tests__/server.test.ts`.
 - Validation: `pnpm typecheck` passed; `pnpm lint` passed with 5 pre-existing complexity warnings; `pnpm test` passed (219 tests); `pnpm build` passed; `pnpm validate:descriptions` reports `Total tools found: 31` and all descriptions valid.
+
+## MCP Audit Fixes (2026-02-28)
+- [x] Fix `meta_create_ad_creative` passthrough for `asset_feed_spec`, `url_tags`, `instagram_actor_id`
+- [x] Add tests for creative passthrough payload in `MetaClient.createAdCreative`
+- [x] Add CBO guardrails for `meta_create_adset` when campaign-level budget is present
+- [x] Clarify `meta_create_ad` inline creative docs (`object_story_spec` only)
+- [x] Add `stop_time` + budget compatibility validation and docs for campaign tools
+- [x] Run verification gates (`typecheck`, `lint`, `test`)
+
+## Review (MCP Audit Fixes)
+- [x] Root cause fixed: creative create path now preserves optional dynamic-creative and tracking fields (`asset_feed_spec`, `url_tags`, `instagram_actor_id`, `degrees_of_freedom_spec`, `applink_treatment`) and enforces one-of spec input (`object_story_spec` xor `asset_feed_spec`).
+- [x] Root cause fixed: ad-set creation now checks parent campaign budget mode (best-effort) and blocks ad-set budget fields for CBO campaigns with a clear error.
+- [x] Root cause fixed: ad creation docstring now explicitly documents inline `object_story_spec` behavior and dynamic creative flow via `meta_create_ad_creative` + `creative_id`.
+- [x] Root cause fixed: campaign `stop_time` now validates timezone presence and lifetime-budget compatibility, with docs aligned to real Meta behavior.
+- [x] Validation evidence: `qa` passed (`pnpm typecheck`, `pnpm lint`, `pnpm test`), lint emitted existing complexity warnings only; tests `271 passed`.
+
+## Follow-up Fixes: #14 + #16 (2026-03-01)
+- [x] Force explicit campaign `bid_strategy` default to `LOWEST_COST_WITHOUT_CAP` when omitted
+- [x] Add regression test for campaign bid strategy default behavior
+- [x] Add creative CTA guardrail: reject `GET_TICKETS` in `object_story_spec` and suggest `BUY_TICKETS`
+- [x] Add creative CTA validator tests
+- [x] Re-run verification gates (`typecheck`, `lint`, `test`)
+
+## Review (Follow-up Fixes: #14 + #16)
+- [x] Root cause fixed: campaign create requests now always send explicit `bid_strategy`, avoiding Meta fallback to bid-cap defaults that require ad-set `bid_amount`.
+- [x] Root cause fixed: `meta_create_ad_creative` now blocks known invalid `GET_TICKETS` CTA in `object_story_spec` before API call and provides replacement guidance.

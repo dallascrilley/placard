@@ -340,6 +340,114 @@ describe("MetaClient", () => {
     });
   });
 
+  describe("getCustomAudiences", () => {
+    it("should fetch custom audiences for an account", async () => {
+      const mockData = {
+        data: [{ id: "ca_1", name: "Purchasers" }],
+      };
+      mockFetch.mockResolvedValue(createMockResponse({ body: mockData }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      const result = await client.getCustomAudiences("act_123");
+
+      expect(result).toEqual(mockData);
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("/act_123/customaudiences");
+      expect(calledUrl).toContain("summary=true");
+    });
+
+    it("should pass cursor pagination params", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getCustomAudiences("act_123", {
+        after: "after_cursor",
+        before: "before_cursor",
+      });
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("after=after_cursor");
+      expect(calledUrl).toContain("before=before_cursor");
+    });
+
+    it("should allow overriding returned fields", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.getCustomAudiences("act_123", { fields: ["id", "name"] });
+
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("fields=id%2Cname");
+    });
+  });
+
+  describe("createCustomAudience", () => {
+    it("should create custom audience with required fields", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { id: "ca_123" } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      const result = await client.createCustomAudience("act_123", {
+        name: "Purchasers 180d",
+      });
+
+      expect(result).toEqual({ id: "ca_123" });
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("/act_123/customaudiences");
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.name).toBe("Purchasers 180d");
+      expect(body.subtype).toBe("CUSTOM");
+    });
+
+    it("should include optional custom audience fields", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { id: "ca_123" } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      await client.createCustomAudience("act_123", {
+        name: "Website Visitors",
+        subtype: "WEBSITE",
+        retention_days: 30,
+        rule: { event: { eq: "ViewContent" } },
+      });
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.subtype).toBe("WEBSITE");
+      expect(body.retention_days).toBe(30);
+      expect(body.rule).toEqual({ event: { eq: "ViewContent" } });
+    });
+  });
+
+  describe("createLookalikeAudience", () => {
+    it("should create lookalike audience with source and spec", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ body: { id: "la_123" } }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      const result = await client.createLookalikeAudience("act_123", {
+        name: "LAL 1% Purchasers",
+        origin_audience_id: "ca_source_1",
+        lookalike_spec: { country: "US", ratio: 0.01 },
+      });
+
+      expect(result).toEqual({ id: "la_123" });
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("/act_123/customaudiences");
+
+      const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
+      const body = JSON.parse(options.body as string);
+      expect(body.subtype).toBe("LOOKALIKE");
+      expect(body.origin_audience_id).toBe("ca_source_1");
+      expect(body.lookalike_spec).toEqual({ country: "US", ratio: 0.01 });
+    });
+  });
+
   describe("getCampaigns", () => {
     it("should fetch campaigns for account", async () => {
       const mockData = {

@@ -1,5 +1,70 @@
 # TODO
 
+## Duplicate + Compare Tools (2026-03-01)
+- [x] Add shared entity comparison utility for normalized nested diffs
+- [x] Add campaign duplicate/compare tools
+- [x] Add ad set duplicate/compare tools
+- [x] Add ad duplicate/compare tools
+- [x] Fix `MetaClient.updateAdSet` typing/body support for `promoted_object`
+- [x] Add comparison utility tests and update server tool inventory expectations
+- [x] Update README tool inventory for new tools
+- [x] Run validation gates (`typecheck`, `lint`, `test`, `validate:descriptions`)
+
+## Review (Duplicate + Compare Tools)
+- Root-cause/value: There was no direct way to clone reference entities or run deterministic field-level comparisons between reference entities and MCP/agent-created entities. Added dedicated duplicate + compare tools for campaigns, ad sets, and ads, backed by a shared compare utility.
+- Verification evidence:
+  - `pnpm typecheck` passed
+  - `pnpm lint` passed (6 pre-existing complexity warnings)
+  - `pnpm test` passed (`11/11` files, `243/243` tests)
+  - `pnpm validate:descriptions` passed (`Total tools found: 39`)
+
+## Campaign Tree Compare Composite Tool (2026-03-01)
+- [x] Add `meta_compare_campaign_trees` composite tool for campaign + ad sets + ads
+- [x] Include optional `ignore_fields` and `include_matches` controls
+- [x] Update composite/server registration expectations
+- [x] Update README composite tool inventory
+- [x] Add handler-level regression test for `meta_compare_campaign_trees`
+- [x] Re-run validation gates and capture updated evidence
+
+## Review (Campaign Tree Compare Composite Tool)
+- Root-cause/value: The existing entity-level compare tools required multiple calls to assess full campaign parity. Added `meta_compare_campaign_trees` to compare campaign + ad set + ad layers in one call, including missing-entity detection and per-layer diff summaries.
+- Validation evidence:
+  - `pnpm typecheck` passed
+  - `pnpm lint` passed (6 pre-existing complexity warnings)
+  - `pnpm test` passed (`11/11` files, `244/244` tests)
+  - `pnpm validate:descriptions` passed (`Total tools found: 40`)
+
+## Review Fixes: Campaign Tree Compare (2026-03-01)
+- [x] Fix pagination truncation in `meta_compare_campaign_trees` by fetching all ad set/ad pages
+- [x] Replace duplicate-name pairing logic with structural similarity pairing (instead of name + sorted-id index)
+- [x] Add regression test for paged traversal behavior
+- [x] Add regression test for duplicate-name pairing correctness
+- [x] Re-run validation gates and capture evidence
+
+## Review (Campaign Tree Compare Fixes)
+- Root-cause/value: compare-tree could return incorrect results by truncating at first page and arbitrarily pairing duplicate-named entities by ID ordering. Updated to fully page through children and pair entities by structural similarity scoring with stable signature hints.
+- Validation evidence:
+  - `pnpm typecheck` passed
+  - `pnpm lint` passed (7 pre-existing complexity warnings)
+  - `pnpm test` passed (`12/12` files, `249/249` tests)
+  - `pnpm validate:descriptions` passed (`Total tools found: 40`)
+
+## Review Fixes: Hierarchy + Cross-Account Creative Clone (2026-03-01)
+- [x] Preserve ad hierarchy by comparing ads within paired ad-set contexts (not global campaign pool)
+- [x] Keep ad compare semantics ID-agnostic while still enforcing tree structure
+- [x] Change `meta_duplicate_ad` to clone source creative into destination account before creating duplicated ad
+- [x] Add regression test for moved-ads-between-adsets scenario
+- [x] Add regression tests for ad duplicate creative cloning + non-cloneable creative failure
+- [x] Re-run validation gates and capture evidence
+
+## Review (Hierarchy + Cross-Account Creative Clone Fixes)
+- Root-cause/value: tree compare could report false matches when ads were attached to different ad sets, and ad duplication reused source creative IDs that can fail across accounts. Updated tree compare to enforce parent-child context and duplicate-ad to create destination-owned creative IDs.
+- Validation evidence:
+  - `pnpm typecheck` passed
+  - `pnpm lint` passed (7 pre-existing complexity warnings)
+  - `pnpm test` passed (`12/12` files, `249/249` tests)
+  - `pnpm validate:descriptions` passed (`Total tools found: 40`)
+
 ## OAuth callback state mismatch troubleshooting
 - [x] Identify why callback returns `Invalid or expired state parameter`
 - [x] Add callback fallback page that preserves auth completion path using `meta_complete_auth`

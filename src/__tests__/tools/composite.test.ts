@@ -165,32 +165,36 @@ describe("Composite Tools", () => {
         .spyOn(MetaClient.prototype, "updateCampaign")
         .mockResolvedValue({ success: true });
 
-      const response = await planHandler(
-        {
-          account_id: "act_123",
-          validate_live: false,
-          execute_now: true,
-          phases: [
-            {
-              phase: "Phase 1",
-              effective_date: "2026-03-10",
-              updates: [{ campaign_id: "camp_1", daily_budget: 5000 }],
-            },
-            {
-              phase: "Phase 2",
-              effective_date: "2026-03-17",
-              updates: [{ campaign_id: "camp_2", daily_budget: 7000 }],
-            },
-          ],
-        },
-        {},
-      );
+      try {
+        const response = await planHandler(
+          {
+            account_id: "act_123",
+            validate_live: false,
+            execute_now: true,
+            phases: [
+              {
+                phase: "Phase 1",
+                effective_date: "2026-03-10",
+                updates: [{ campaign_id: "camp_1", daily_budget: 5000 }],
+              },
+              {
+                phase: "Phase 2",
+                effective_date: "2026-03-17",
+                updates: [{ campaign_id: "camp_2", daily_budget: 7000 }],
+              },
+            ],
+          },
+          {},
+        );
 
-      const parsed = parseToolResponseText(response);
-      expect(updateCampaignSpy).toHaveBeenCalledTimes(2);
-      expect(parsed.phase_plan.execution.requested).toBe(2);
-      expect(parsed.phase_plan.execution.succeeded).toBe(2);
-      expect(parsed.phase_plan.execution.failed).toBe(0);
+        const parsed = parseToolResponseText(response);
+        expect(updateCampaignSpy).toHaveBeenCalledTimes(2);
+        expect(parsed.phase_plan.execution.requested).toBe(2);
+        expect(parsed.phase_plan.execution.succeeded).toBe(2);
+        expect(parsed.phase_plan.execution.failed).toBe(0);
+      } finally {
+        updateCampaignSpy.mockRestore();
+      }
     });
   });
 

@@ -282,6 +282,9 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 ### Campaign Budget Optimization (CBO)
 - If a campaign uses CBO (budget set at campaign level), ad sets must **not** have their own `daily_budget` or `lifetime_budget`
 
+### Audience Creation
+- `meta_create_custom_audience` and `meta_create_lookalike_audience` delegate to the Meta Marketing API; repeated calls with identical params create duplicates. Check for existing audiences by name before creating if you need idempotent behavior.
+
 ## Field Defaults
 
 - `meta_get_ad_creatives` defaults to slim fields: `id,name,body,thumbnail_url`.
@@ -298,6 +301,7 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 ## Documentation
 
 - **[Parameter Reference](docs/PARAMETERS.md)** - Detailed parameter documentation with examples
+- **[Batch Workflow](docs/BATCH.md)** - Execution order, rollback hints, dry-run scope, validation semantics
 - **[Runbooks](docs/runbooks/)** - Operational guides for deployment and OAuth setup
 - **[CHANGELOG](CHANGELOG.md)** - Version history and feature updates
 

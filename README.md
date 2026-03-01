@@ -182,33 +182,51 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 | `meta_get_ad_accounts` | List accessible ad accounts |
 | `meta_get_account_info` | Get detailed account information |
 
-### Campaigns (5 tools)
+### Campaigns (7 tools)
 
 | Tool | Description |
 |------|-------------|
 | `meta_get_campaigns` | List campaigns with filtering |
 | `meta_get_campaign_copy` | Get deduplicated ad copy text for a campaign |
 | `meta_get_campaign_details` | Get campaign details |
+| `meta_duplicate_campaign` | Duplicate a campaign into a target account |
+| `meta_compare_campaigns` | Compare two campaigns field-by-field |
 | `meta_create_campaign` | Create new campaign |
 | `meta_update_campaign` | Update campaign settings |
 
-### Ad Sets (4 tools)
+### Ad Sets (7 tools)
 
 | Tool | Description |
 |------|-------------|
 | `meta_get_adsets` | List ad sets |
 | `meta_get_adset_details` | Get ad set details |
+| `meta_duplicate_adset` | Duplicate an ad set into a target campaign |
+| `meta_compare_adsets` | Compare two ad sets field-by-field |
 | `meta_create_adset` | Create new ad set |
 | `meta_update_adset` | Update ad set settings |
+| `meta_delete_adset` | Soft-delete an ad set |
 
-### Ads (4 tools)
+### Ads (7 tools)
 
 | Tool | Description |
 |------|-------------|
 | `meta_get_ads` | List ads |
 | `meta_get_ad_details` | Get ad details |
+| `meta_duplicate_ad` | Duplicate an ad into a target ad set |
+| `meta_compare_ads` | Compare two ads field-by-field |
 | `meta_create_ad` | Create new ad |
 | `meta_update_ad` | Update ad settings |
+| `meta_delete_ad` | Soft-delete an ad |
+
+### Composite Workflows (5 tools)
+
+| Tool | Description |
+|------|-------------|
+| `meta_get_campaign_summary` | Get campaign + ad sets + ads snapshot in one call |
+| `meta_get_account_overview` | Get account-level overview and campaign status rollup |
+| `meta_search_ads` | Search ads by keyword across creative text |
+| `meta_validate_campaign_config` | Validate campaign config without creating entities |
+| `meta_compare_campaign_trees` | Compare full campaign trees (campaign + ad sets + ads) |
 
 ### Creatives (2 tools)
 

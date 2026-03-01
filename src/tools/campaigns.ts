@@ -26,6 +26,7 @@ import {
   responseFormatSchema,
   userIdSchema,
 } from "../schemas/index.js";
+import { compareEntities } from "../utils/entity-compare.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
 import { withToolHandler } from "../utils/tool-handler.js";
 import {
@@ -33,6 +34,14 @@ import {
   createSuccessResponse,
   enhancePagination,
 } from "../utils/tool-responses.js";
+
+const DEFAULT_CAMPAIGN_COMPARE_IGNORE_FIELDS = [
+  "id",
+  "created_time",
+  "updated_time",
+  "effective_status",
+  "budget_remaining",
+];
 
 export function registerCampaignTools(server: McpServer): void {
   /**
@@ -293,6 +302,180 @@ Errors:
 
       return createSuccessResponse({ campaign }, format);
     }),
+  );
+
+  /**
+   * Duplicate a campaign into a target ad account
+   */
+  server.tool(
+    "meta_duplicate_campaign",
+    `Duplicate a campaign into a target ad account.
+
+Copies campaign configuration from a source campaign and creates a new campaign in the target account. This helps replicate known-good reference campaigns into another account for testing or migration workflows.
+
+Args:
+  - source_campaign_id (string, required): Campaign ID to copy from
+  - target_account_id (string, required): Destination ad account ID (with or without 'act_' prefix)
+  - name (string, optional): Name for duplicated campaign (default: source name + " (Copy)")
+  - status (string, optional): Initial status for duplicated campaign - ACTIVE or PAUSED (default: PAUSED)
+  - copy_budget (boolean, optional): Copy source daily/lifetime budget values (default: true)
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')
+
+Returns:
+  {
+    "success": true,
+    "campaign_id": "999888777",
+    "source_campaign_id": "123456789",
+    "target_account_id": "act_123",
+    "message": "Campaign duplicated successfully"
+  }`,
+    {
+      source_campaign_id: z.string().describe("Campaign ID to duplicate"),
+      target_account_id: accountIdSchema,
+      name: z
+        .string()
+        .min(1)
+        .optional()
+        .describe("Name for the duplicated campaign"),
+      status: z
+        .enum(["ACTIVE", "PAUSED"])
+        .optional()
+        .describe("Initial status for duplicated campaign (default: PAUSED)"),
+      copy_budget: z
+        .boolean()
+        .optional()
+        .describe("Copy source daily/lifetime budget values (default: true)"),
+      user_id: userIdSchema,
+      response_format: responseFormatSchema,
+    },
+    CREATE_ANNOTATIONS,
+    withToolHandler(
+      async (
+        { source_campaign_id, target_account_id, name, status, copy_budget },
+        { client, format },
+      ) => {
+        const sourceCampaign =
+          await client.getCampaignDetails(source_campaign_id);
+        const normalizedTargetId = normalizeAccountId(target_account_id);
+        const copyBudget = copy_budget ?? true;
+        const filteredCategories = sourceCampaign.special_ad_categories?.filter(
+          (category) => category !== "NONE",
+        );
+
+        const result = await client.createCampaign(normalizedTargetId, {
+          name: name ?? `${sourceCampaign.name} (Copy)`,
+          objective: sourceCampaign.objective,
+          status: status ?? "PAUSED",
+          special_ad_categories: filteredCategories,
+          special_ad_category_country:
+            sourceCampaign.special_ad_category_country,
+          daily_budget: copyBudget
+            ? sourceCampaign.daily_budget
+              ? Number(sourceCampaign.daily_budget)
+              : undefined
+            : undefined,
+          lifetime_budget: copyBudget
+            ? sourceCampaign.lifetime_budget
+              ? Number(sourceCampaign.lifetime_budget)
+              : undefined
+            : undefined,
+          start_time: sourceCampaign.start_time,
+          stop_time: sourceCampaign.stop_time,
+          promoted_object: sourceCampaign.promoted_object,
+        });
+
+        return createSuccessResponse(
+          {
+            campaign_id: result.id,
+            source_campaign_id,
+            target_account_id: normalizedTargetId,
+            message: "Campaign duplicated successfully",
+          },
+          format,
+        );
+      },
+    ),
+  );
+
+  /**
+   * Compare two campaigns and return field-level differences
+   */
+  server.tool(
+    "meta_compare_campaigns",
+    `Compare two campaigns and return field-level differences.
+
+Fetches both campaigns, normalizes nested values, and reports exact field differences. Useful for validating MCP/agent-created campaigns against known-good reference campaigns.
+
+Args:
+  - source_campaign_id (string, required): Reference campaign ID
+  - target_campaign_id (string, required): Campaign ID to compare against reference
+  - ignore_fields (array[string], optional): Additional field paths to ignore (e.g., ["name", "special_ad_category_country"])
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')
+
+Returns:
+  {
+    "success": true,
+    "match": false,
+    "source_campaign_id": "123",
+    "target_campaign_id": "456",
+    "summary": {
+      "total_compared_fields": 10,
+      "matched_fields": 8,
+      "different_fields": 2,
+      "missing_in_source": 0,
+      "missing_in_target": 0
+    },
+    "differences": [
+      {
+        "field": "objective",
+        "status": "different",
+        "source_value": "OUTCOME_TRAFFIC",
+        "target_value": "OUTCOME_LEADS"
+      }
+    ]
+  }`,
+    {
+      source_campaign_id: z.string().describe("Reference campaign ID"),
+      target_campaign_id: z.string().describe("Campaign ID to compare"),
+      ignore_fields: z
+        .array(z.string().min(1))
+        .optional()
+        .describe("Additional field paths to ignore in comparison"),
+      user_id: userIdSchema,
+      response_format: responseFormatSchema,
+    },
+    READ_ONLY_ANNOTATIONS,
+    withToolHandler(
+      async (
+        { source_campaign_id, target_campaign_id, ignore_fields },
+        { client, format },
+      ) => {
+        const [sourceCampaign, targetCampaign] = await Promise.all([
+          client.getCampaignDetails(source_campaign_id),
+          client.getCampaignDetails(target_campaign_id),
+        ]);
+
+        const compareResult = compareEntities(
+          sourceCampaign as unknown as Record<string, unknown>,
+          targetCampaign as unknown as Record<string, unknown>,
+          {
+            ignoreFields: [
+              ...DEFAULT_CAMPAIGN_COMPARE_IGNORE_FIELDS,
+              ...(ignore_fields ?? []),
+            ],
+          },
+        );
+
+        return createSuccessResponse(
+          {
+            source_campaign_id,
+            target_campaign_id,
+            ...compareResult,
+          },
+          format,
+        );
+      },
+    ),
   );
 
   /**

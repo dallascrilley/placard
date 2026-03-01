@@ -45,14 +45,18 @@ describe("createServer", () => {
       const expectedTools = [
         // Health (1)
         "health_check",
-        // Auth (3)
+        // Auth (4)
         "get_login_link",
         "check_auth_status",
+        "complete_auth",
         "logout",
-        // Accounts (2)
+        // Accounts (5)
         "get_ad_accounts",
         "get_account_info",
-        // Campaigns (7)
+        "get_custom_audiences",
+        "create_custom_audience",
+        "create_lookalike_audience",
+        // Campaigns (8)
         "get_campaigns",
         "get_campaign_copy",
         "get_campaign_details",
@@ -60,6 +64,7 @@ describe("createServer", () => {
         "compare_campaigns",
         "create_campaign",
         "update_campaign",
+        "delete_campaign",
         // Ad Sets (7)
         "get_adsets",
         "get_adset_details",
@@ -79,6 +84,8 @@ describe("createServer", () => {
         // Creatives (2)
         "get_ad_creatives",
         "create_ad_creative",
+        // Ad images (1)
+        "upload_image",
         // Targeting (2)
         "search_targeting",
         "get_reach_estimate",
@@ -87,19 +94,31 @@ describe("createServer", () => {
         "get_campaign_insights",
         "get_adset_insights",
         "get_ad_insights",
-        // Composite (5)
+        // Composite (7)
         "get_campaign_summary",
         "get_account_overview",
         "search_ads",
         "validate_campaign_config",
         "compare_campaign_trees",
+        "verify_campaign_structure",
+        "generate_budget_phase_plan",
+        // Batch (1)
+        "create_campaign_from_config",
       ];
 
-      // Verify tool count: 1+3+2+7+7+7+2+2+4+5 = 40
-      expect(expectedTools.length).toBe(40);
+      const server = createServer();
+      const registeredTools = (
+        server as {
+          _registeredTools?: Record<string, unknown>;
+          tools?: unknown;
+        }
+      )._registeredTools;
+      const actualToolNames = registeredTools
+        ? Object.keys(registeredTools).map((name) => name.replace(/^meta_/, ""))
+        : [];
+      expect([...actualToolNames].sort()).toEqual([...expectedTools].sort());
 
       // Server should create without errors (tools registered internally)
-      const server = createServer();
       expect(server).toBeDefined();
     });
   });

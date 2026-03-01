@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { readFile, realpath } from "node:fs/promises";
+import { isAbsolute, relative, resolve } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { MetaClient } from "../api/meta-client.js";
@@ -143,13 +143,27 @@ async function resolveBatchConfigInput(
 
   const filePath = configPath as string;
   const resolvedPath = resolve(filePath);
-  const cwd = process.cwd();
-  if (!resolvedPath.startsWith(`${cwd}/`) && resolvedPath !== cwd) {
+  const baseReal = await realpath(process.cwd());
+  let configReal: string;
+  try {
+    configReal = await realpath(resolvedPath);
+  } catch {
     throw new Error(
-      `config_path must be within the working directory (${cwd}). Resolved path: ${resolvedPath}`,
+      `config_path does not exist or is not accessible: ${resolvedPath}`,
     );
   }
-  const raw = await readFile(resolvedPath, "utf8");
+  if (!isAbsolute(configReal)) {
+    throw new Error(
+      `config_path must resolve to an absolute path within the working directory. Got: ${configReal}`,
+    );
+  }
+  const rel = relative(baseReal, configReal);
+  if (rel.startsWith("..") || rel === "..") {
+    throw new Error(
+      `config_path must be within the working directory (${baseReal}). Resolved path: ${configReal}`,
+    );
+  }
+  const raw = await readFile(configReal, "utf8");
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -509,7 +523,10 @@ function validateAd(
   warnings: ValidationMessage[],
 ): void {
   const creativeChoices = [ad.creative_id, ad.creative_ref, ad.creative].filter(
-    (value) => value !== undefined,
+    (value) =>
+      value !== undefined &&
+      value !== null &&
+      (typeof value !== "string" || value.trim() !== ""),
   );
   if (creativeChoices.length !== 1) {
     addError(

@@ -36,6 +36,10 @@ export interface MetaClientOptions {
   maxRetries?: number;
 }
 
+export type LookalikeSpec =
+  | { country: string; ratio: number }
+  | { type: string; country: string; starting_ratio: number; ratio: number };
+
 export class MetaClient {
   private accessToken: string | null;
   private userId: string;
@@ -251,7 +255,7 @@ export class MetaClient {
     data: {
       name: string;
       origin_audience_id: string;
-      lookalike_spec: object;
+      lookalike_spec: LookalikeSpec;
       description?: string | undefined;
     },
   ): Promise<{ id: string }> {

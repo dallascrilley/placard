@@ -1,4 +1,5 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { describe, expect, it, vi } from "vitest";
@@ -429,8 +430,7 @@ describe("batch dry-run tool", () => {
       extra: unknown,
     ) => Promise<{ content: Array<{ text: string }> }>;
 
-    const dir = join(process.cwd(), ".tmp-batch-test");
-    await mkdir(dir, { recursive: true });
+    const dir = await mkdtemp(join(process.cwd(), "batch-test-"));
     const configPath = join(dir, "campaign-config.json");
     await writeFile(configPath, JSON.stringify(buildValidConfig()), "utf8");
 
@@ -461,18 +461,26 @@ describe("batch dry-run tool", () => {
       extra: unknown,
     ) => Promise<{ content: Array<{ text: string }>; isError?: boolean }>;
 
-    const response = await handler(
-      {
-        account_id: "act_123",
-        config_path: "/tmp/malicious-config.json",
-        dry_run: true,
-      },
-      {},
-    );
+    const outsideDir = await mkdtemp(join(tmpdir(), "batch-outside-"));
+    const configPath = join(outsideDir, "config.json");
+    await writeFile(configPath, JSON.stringify(buildValidConfig()), "utf8");
 
-    expect(response.isError).toBe(true);
-    const parsed = parseToolResponseText(response);
-    expect(parsed.error).toContain("within the working directory");
+    try {
+      const response = await handler(
+        {
+          account_id: "act_123",
+          config_path: configPath,
+          dry_run: true,
+        },
+        {},
+      );
+
+      expect(response.isError).toBe(true);
+      const parsed = parseToolResponseText(response);
+      expect(parsed.error).toContain("within the working directory");
+    } finally {
+      await rm(outsideDir, { recursive: true, force: true });
+    }
   });
 
   it("rejects when both config and config_path are provided", async () => {

@@ -418,6 +418,14 @@ function collectBudgetPhaseWarnings(
           `Phase "${phase.phase}" keeps lifetime_budget unchanged for campaign ${update.campaign_id}.`,
         );
       }
+      if (
+        update.spend_cap !== undefined &&
+        snapshot.spend_cap === String(update.spend_cap)
+      ) {
+        warnings.push(
+          `Phase "${phase.phase}" keeps spend_cap unchanged for campaign ${update.campaign_id}.`,
+        );
+      }
     }
   }
   return warnings;

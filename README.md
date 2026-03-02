@@ -23,6 +23,8 @@ Required environment variables:
 | `META_APP_ID` | Facebook App ID | Yes |
 | `META_APP_SECRET` | Facebook App Secret | Yes |
 | `META_API_VERSION` | Graph API version (default: `v22.0`) | No |
+| `META_API_MIN_REQUEST_INTERVAL_MS` | Minimum delay between API requests (default: `1000`) | No |
+| `META_API_RATE_LIMIT_COOLDOWN_MS` | Cooldown applied after rate-limit errors (default: `60000`) | No |
 | `META_OAUTH_CALLBACK_URL` | OAuth callback URL | Yes |
 | `SQLITE_DB_PATH` | Token storage path (default: `./data/tokens.db`) | No |
 

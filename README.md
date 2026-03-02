@@ -168,7 +168,7 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 
 ### Tool Summary
 
-**Total: 39 tools** across 10 categories
+**Total: 47 tools** across 11 categories
 
 ### Authentication (3 tools)
 
@@ -188,33 +188,39 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 | `meta_create_custom_audience` | Create a custom audience |
 | `meta_create_lookalike_audience` | Create a lookalike audience from a source audience |
 
-### Campaigns (6 tools)
+### Campaigns (8 tools)
 
 | Tool | Description |
 |------|-------------|
 | `meta_get_campaigns` | List campaigns with filtering |
 | `meta_get_campaign_copy` | Get deduplicated ad copy text for a campaign |
 | `meta_get_campaign_details` | Get campaign details |
+| `meta_duplicate_campaign` | Duplicate a campaign into a target account |
+| `meta_compare_campaigns` | Compare two campaigns field-by-field |
 | `meta_create_campaign` | Create new campaign (supports spend_cap, special_ad_category_country, promoted_object) |
 | `meta_update_campaign` | Update campaign settings |
 | `meta_delete_campaign` | Soft-delete a campaign |
 
-### Ad Sets (5 tools)
+### Ad Sets (7 tools)
 
 | Tool | Description |
 |------|-------------|
 | `meta_get_adsets` | List ad sets |
 | `meta_get_adset_details` | Get ad set details |
+| `meta_duplicate_adset` | Duplicate an ad set into a target campaign |
+| `meta_compare_adsets` | Compare two ad sets field-by-field |
 | `meta_create_adset` | Create new ad set (supports destination_type, is_dynamic_creative, pacing_type, enhanced validation) |
 | `meta_update_adset` | Update ad set settings (supports pacing_type, promoted_object) |
 | `meta_delete_adset` | Soft-delete an ad set |
 
-### Ads (5 tools)
+### Ads (7 tools)
 
 | Tool | Description |
 |------|-------------|
 | `meta_get_ads` | List ads |
 | `meta_get_ad_details` | Get ad details |
+| `meta_duplicate_ad` | Duplicate an ad into a target ad set |
+| `meta_compare_ads` | Compare two ads field-by-field |
 | `meta_create_ad` | Create new ad |
 | `meta_update_ad` | Update ad settings |
 | `meta_delete_ad` | Soft-delete an ad |
@@ -237,7 +243,7 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 | `meta_get_adset_insights` | Ad set-level metrics |
 | `meta_get_ad_insights` | Ad-level metrics |
 
-### Composite Workflows (6 tools)
+### Composite Workflows (7 tools)
 
 | Tool | Description |
 |------|-------------|
@@ -245,6 +251,7 @@ In [Facebook Developer Console](https://developers.facebook.com/):
 | `meta_get_account_overview` | Get account summary with optional insights |
 | `meta_search_ads` | Search ad creative text by keyword |
 | `meta_validate_campaign_config` | Validate campaign config pre-flight checks |
+| `meta_compare_campaign_trees` | Compare full campaign trees (campaign + ad sets + ads) |
 | `meta_verify_campaign_structure` | Verify live campaign/ad set/ad structure and key fields |
 | `meta_generate_budget_phase_plan` | Generate dated `meta_update_campaign` calls for budget phase transitions (optionally execute immediately) |
 

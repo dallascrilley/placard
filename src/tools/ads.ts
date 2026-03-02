@@ -20,6 +20,7 @@ import {
   responseFormatSchema,
   userIdSchema,
 } from "../schemas/index.js";
+import { compareEntities } from "../utils/entity-compare.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
 import { withToolHandler } from "../utils/tool-handler.js";
 import {
@@ -27,6 +28,30 @@ import {
   createSuccessResponse,
   enhancePagination,
 } from "../utils/tool-responses.js";
+
+const DEFAULT_AD_COMPARE_IGNORE_FIELDS = [
+  "id",
+  "adset_id",
+  "campaign_id",
+  "created_time",
+  "updated_time",
+  "effective_status",
+  "creative.id",
+];
+
+function hasObjectStorySpec(
+  creative: Record<string, unknown> | undefined,
+): creative is Record<string, unknown> & { object_story_spec: object } {
+  if (!creative) return false;
+  const spec = creative["object_story_spec"];
+  return typeof spec === "object" && spec !== null && !Array.isArray(spec);
+}
+
+function buildFallbackCreativeName(sourceAdName: string): string {
+  // Keep fallback names unique enough to avoid destination creative-name collisions.
+  const suffix = new Date().toISOString().replace(/[:.]/g, "-");
+  return `${sourceAdName} (Copy Creative ${suffix})`;
+}
 
 export function registerAdTools(server: McpServer): void {
   /**
@@ -175,6 +200,190 @@ Errors:
 
       return createSuccessResponse({ ad }, format);
     }),
+  );
+
+  /**
+   * Duplicate an ad into a target ad set
+   */
+  server.tool(
+    "meta_duplicate_ad",
+    `Duplicate an ad into a target ad set.
+
+Copies ad configuration from a source ad and creates a new ad in the destination account/ad set. The tool clones the source creative into the destination account first, then creates the new ad using that cloned creative to support cross-account duplication safely.
+
+Args:
+  - source_ad_id (string, required): Ad ID to copy from
+  - target_account_id (string, required): Destination ad account ID (with or without 'act_' prefix)
+  - target_adset_id (string, required): Destination ad set ID for new ad
+  - name (string, optional): Name for duplicated ad (default: source name + " (Copy)")
+  - status (string, optional): Initial status for duplicated ad - ACTIVE or PAUSED (default: PAUSED)
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')
+
+Returns:
+  {
+    "success": true,
+    "ad_id": "999888777",
+    "source_ad_id": "123456789",
+    "target_adset_id": "987654321",
+    "creative_id": "111222333",
+    "message": "Ad duplicated successfully"
+  }`,
+    {
+      source_ad_id: z.string().describe("Ad ID to duplicate"),
+      target_account_id: accountIdSchema,
+      target_adset_id: z.string().describe("Destination ad set ID"),
+      name: z.string().min(1).optional().describe("Name for duplicated ad"),
+      status: z
+        .enum(["ACTIVE", "PAUSED"])
+        .optional()
+        .describe("Initial status for duplicated ad (default: PAUSED)"),
+      user_id: userIdSchema,
+      response_format: responseFormatSchema,
+    },
+    CREATE_ANNOTATIONS,
+    withToolHandler(
+      async (
+        { source_ad_id, target_account_id, target_adset_id, name, status },
+        { client, format },
+      ) => {
+        const sourceAd = await client.getAdDetails(source_ad_id, [
+          "id",
+          "name",
+          "creative{id,name,object_story_spec}",
+        ]);
+        const sourceCreative = sourceAd.creative as
+          | Record<string, unknown>
+          | undefined;
+        const creativeId =
+          typeof sourceCreative?.["id"] === "string"
+            ? (sourceCreative["id"] as string)
+            : undefined;
+
+        if (!creativeId) {
+          return createErrorResponse(
+            new Error(
+              "Source ad is missing creative.id; cannot duplicate without a creative reference",
+            ),
+            format,
+          );
+        }
+
+        const normalizedTargetId = normalizeAccountId(target_account_id);
+        if (!hasObjectStorySpec(sourceCreative)) {
+          return createErrorResponse(
+            new Error(
+              `Source creative ${creativeId} does not include object_story_spec, so it cannot be cloned into destination account ${normalizedTargetId}.`,
+            ),
+            format,
+          );
+        }
+
+        const clonedCreative = await client.createAdCreative(
+          normalizedTargetId,
+          {
+            name: (typeof sourceCreative["name"] === "string" &&
+            sourceCreative["name"].trim().length > 0
+              ? sourceCreative["name"]
+              : buildFallbackCreativeName(sourceAd.name)) as string,
+            object_story_spec: sourceCreative.object_story_spec,
+          },
+        );
+
+        const result = await client.createAd(normalizedTargetId, {
+          name: name ?? `${sourceAd.name} (Copy)`,
+          adset_id: target_adset_id,
+          creative: { creative_id: clonedCreative.id },
+          status: status ?? "PAUSED",
+        });
+
+        return createSuccessResponse(
+          {
+            ad_id: result.id,
+            source_ad_id,
+            target_adset_id,
+            target_account_id: normalizedTargetId,
+            source_creative_id: creativeId,
+            creative_id: clonedCreative.id,
+            message: "Ad duplicated successfully",
+          },
+          format,
+        );
+      },
+    ),
+  );
+
+  /**
+   * Compare two ads and return field-level differences
+   */
+  server.tool(
+    "meta_compare_ads",
+    `Compare two ads and return field-level differences.
+
+Fetches both ads, normalizes nested values, and reports exact field differences. Useful for validating generated ads against reference ads.
+
+Args:
+  - source_ad_id (string, required): Reference ad ID
+  - target_ad_id (string, required): Ad ID to compare against reference
+  - ignore_fields (array[string], optional): Additional field paths to ignore
+  - user_id (string, optional): User ID for multi-user auth (default: 'default')
+
+Returns:
+  {
+    "success": true,
+    "match": false,
+    "source_ad_id": "123",
+    "target_ad_id": "456",
+    "summary": {
+      "total_compared_fields": 15,
+      "matched_fields": 12,
+      "different_fields": 3,
+      "missing_in_source": 0,
+      "missing_in_target": 0
+    },
+    "differences": []
+  }`,
+    {
+      source_ad_id: z.string().describe("Reference ad ID"),
+      target_ad_id: z.string().describe("Ad ID to compare"),
+      ignore_fields: z
+        .array(z.string().min(1))
+        .optional()
+        .describe("Additional field paths to ignore in comparison"),
+      user_id: userIdSchema,
+      response_format: responseFormatSchema,
+    },
+    READ_ONLY_ANNOTATIONS,
+    withToolHandler(
+      async (
+        { source_ad_id, target_ad_id, ignore_fields },
+        { client, format },
+      ) => {
+        const [sourceAd, targetAd] = await Promise.all([
+          client.getAdDetails(source_ad_id),
+          client.getAdDetails(target_ad_id),
+        ]);
+
+        const compareResult = compareEntities(
+          sourceAd as unknown as Record<string, unknown>,
+          targetAd as unknown as Record<string, unknown>,
+          {
+            ignoreFields: [
+              ...DEFAULT_AD_COMPARE_IGNORE_FIELDS,
+              ...(ignore_fields ?? []),
+            ],
+          },
+        );
+
+        return createSuccessResponse(
+          {
+            source_ad_id,
+            target_ad_id,
+            ...compareResult,
+          },
+          format,
+        );
+      },
+    ),
   );
 
   /**

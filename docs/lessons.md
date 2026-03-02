@@ -8,3 +8,8 @@
 ## 2026-03-01 - Provider defaults and CTA guardrails
 - Do not rely on Meta implicit defaults for bid strategy; set `LOWEST_COST_WITHOUT_CAP` explicitly on campaign creation unless caller overrides.
 - Add preflight validation for known-invalid CTA enums in flexible object payloads (e.g., reject `GET_TICKETS` for `object_story_spec` and suggest `BUY_TICKETS`).
+
+## 2026-03-01 - Duplicate/compare tool patterns
+- Review feedback: when source payload fields can be polymorphic (`string | string[]`), normalize with explicit type guards instead of direct casts.
+- Review feedback: fallback-generated resource names should include uniqueness suffixes to avoid operational collisions in repeated clone workflows.
+- Prevention rule: add a regression test whenever duplication logic depends on optional upstream fields (`name`, `pacing_type`, `summary.total_count`).

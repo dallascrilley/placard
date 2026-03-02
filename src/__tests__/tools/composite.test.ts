@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as metaClientModule from "../../api/meta-client.js";
 import { MetaClient } from "../../api/meta-client.js";
 import { getDefaultTokenStore } from "../../api/token-store.js";
 import { registerCompositeTools } from "../../tools/composite.js";
@@ -8,6 +9,26 @@ import { createMockResponse } from "../utils/mock-fetch.js";
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 vi.spyOn(console, "error").mockImplementation(() => {});
+
+interface ToolHandlerResponse {
+  content: Array<{ type: string; text: string }>;
+  isError?: boolean;
+}
+
+function getRegisteredToolHandler(
+  toolMock: ReturnType<typeof vi.fn>,
+  toolName: string,
+): (
+  args: Record<string, unknown>,
+  extra: unknown,
+) => Promise<ToolHandlerResponse> {
+  const call = toolMock.mock.calls.find((entry) => entry[0] === toolName);
+  expect(call).toBeDefined();
+  return call?.[4] as (
+    args: Record<string, unknown>,
+    extra: unknown,
+  ) => Promise<ToolHandlerResponse>;
+}
 
 function parseToolResponseText(response: { content: Array<{ text: string }> }) {
   return JSON.parse(response.content[0]?.text ?? "{}");
@@ -28,13 +49,14 @@ describe("Composite Tools", () => {
       const tool = vi.fn();
       registerCompositeTools({ tool } as unknown as McpServer);
 
-      expect(tool).toHaveBeenCalledTimes(6);
+      expect(tool).toHaveBeenCalledTimes(7);
       expect(tool.mock.calls[0]?.[0]).toBe("meta_get_campaign_summary");
       expect(tool.mock.calls[1]?.[0]).toBe("meta_get_account_overview");
       expect(tool.mock.calls[2]?.[0]).toBe("meta_search_ads");
       expect(tool.mock.calls[3]?.[0]).toBe("meta_validate_campaign_config");
-      expect(tool.mock.calls[4]?.[0]).toBe("meta_verify_campaign_structure");
-      expect(tool.mock.calls[5]?.[0]).toBe("meta_generate_budget_phase_plan");
+      expect(tool.mock.calls[4]?.[0]).toBe("meta_compare_campaign_trees");
+      expect(tool.mock.calls[5]?.[0]).toBe("meta_verify_campaign_structure");
+      expect(tool.mock.calls[6]?.[0]).toBe("meta_generate_budget_phase_plan");
     });
   });
 
@@ -43,7 +65,7 @@ describe("Composite Tools", () => {
       const tool = vi.fn();
       registerCompositeTools({ tool } as unknown as McpServer);
 
-      const verifyHandler = tool.mock.calls[4]?.[4] as (
+      const verifyHandler = tool.mock.calls[5]?.[4] as (
         args: Record<string, unknown>,
         extra: unknown,
       ) => Promise<{ content: Array<{ text: string }> }>;
@@ -115,7 +137,7 @@ describe("Composite Tools", () => {
       const tool = vi.fn();
       registerCompositeTools({ tool } as unknown as McpServer);
 
-      const planHandler = tool.mock.calls[5]?.[4] as (
+      const planHandler = tool.mock.calls[6]?.[4] as (
         args: Record<string, unknown>,
         extra: unknown,
       ) => Promise<{ content: Array<{ text: string }> }>;
@@ -156,7 +178,7 @@ describe("Composite Tools", () => {
       const tool = vi.fn();
       registerCompositeTools({ tool } as unknown as McpServer);
 
-      const planHandler = tool.mock.calls[5]?.[4] as (
+      const planHandler = tool.mock.calls[6]?.[4] as (
         args: Record<string, unknown>,
         extra: unknown,
       ) => Promise<{ content: Array<{ text: string }> }>;
@@ -664,6 +686,621 @@ describe("Composite Tools", () => {
 
       expect(interestResult.data).toHaveLength(1);
       expect(reach.data.users_lower_bound).toBeGreaterThan(0);
+    });
+  });
+
+  describe("meta_compare_campaign_trees", () => {
+    it("should compare campaign, ad sets, and ads in a single handler call", async () => {
+      const tool = vi.fn();
+      registerCompositeTools({ tool } as unknown as McpServer);
+      const handler = getRegisteredToolHandler(
+        tool,
+        "meta_compare_campaign_trees",
+      );
+      vi.spyOn(metaClientModule, "createMetaClient").mockReturnValue(
+        new MetaClient({ accessToken: "test-token" }),
+      );
+
+      mockFetch
+        .mockResolvedValueOnce(
+          createMockResponse({
+            body: {
+              id: "camp_src",
+              name: "Reference Campaign",
+              objective: "OUTCOME_TRAFFIC",
+              status: "PAUSED",
+              effective_status: "PAUSED",
+              created_time: "2026-03-01T00:00:00+0000",
+              updated_time: "2026-03-01T00:00:00+0000",
+              special_ad_categories: [],
+            },
+          }),
+        )
+        .mockResolvedValueOnce(
+          createMockResponse({
+            body: {
+              id: "camp_tgt",
+              name: "Reference Campaign",
+              objective: "OUTCOME_LEADS",
+              status: "PAUSED",
+              effective_status: "PAUSED",
+              created_time: "2026-03-02T00:00:00+0000",
+              updated_time: "2026-03-02T00:00:00+0000",
+              special_ad_categories: [],
+            },
+          }),
+        )
+        .mockResolvedValueOnce(
+          createMockResponse({
+            body: {
+              data: [
+                {
+                  id: "as_1",
+                  name: "Ad Set Alpha",
+                  campaign_id: "camp_src",
+                  status: "PAUSED",
+                  effective_status: "PAUSED",
+                  optimization_goal: "LINK_CLICKS",
+                  billing_event: "IMPRESSIONS",
+                  targeting: { geo_locations: { countries: ["US"] } },
+                  created_time: "2026-03-01T00:00:00+0000",
+                  updated_time: "2026-03-01T00:00:00+0000",
+                },
+              ],
+            },
+          }),
+        )
+        .mockResolvedValueOnce(
+          createMockResponse({
+            body: {
+              data: [
+                {
+                  id: "as_2",
+                  name: "Ad Set Alpha",
+                  campaign_id: "camp_tgt",
+                  status: "PAUSED",
+                  effective_status: "PAUSED",
+                  optimization_goal: "REACH",
+                  billing_event: "IMPRESSIONS",
+                  targeting: { geo_locations: { countries: ["US"] } },
+                  created_time: "2026-03-02T00:00:00+0000",
+                  updated_time: "2026-03-02T00:00:00+0000",
+                },
+              ],
+            },
+          }),
+        )
+        .mockResolvedValueOnce(
+          createMockResponse({
+            body: {
+              data: [
+                {
+                  id: "ad_1",
+                  name: "Ad Variant A",
+                  adset_id: "as_1",
+                  campaign_id: "camp_src",
+                  status: "PAUSED",
+                  effective_status: "PAUSED",
+                  creative: { id: "cr_1", body: "Buy now", title: "Sale" },
+                },
+              ],
+            },
+          }),
+        )
+        .mockResolvedValueOnce(
+          createMockResponse({
+            body: {
+              data: [
+                {
+                  id: "ad_2",
+                  name: "Ad Variant A",
+                  adset_id: "as_2",
+                  campaign_id: "camp_tgt",
+                  status: "PAUSED",
+                  effective_status: "PAUSED",
+                  creative: { id: "cr_2", body: "Learn more", title: "Sale" },
+                },
+              ],
+            },
+          }),
+        );
+
+      const response = await handler(
+        {
+          source_campaign_id: "camp_src",
+          target_campaign_id: "camp_tgt",
+          source_account_id: "act_123",
+          target_account_id: "act_456",
+          response_format: "json",
+        },
+        {},
+      );
+
+      const payload = JSON.parse(response.content[0]?.text ?? "{}");
+      expect(payload.success).toBe(true);
+      expect(payload.match).toBe(false);
+      expect(payload.summary.campaign_match).toBe(false);
+      expect(payload.summary.adsets.different).toBe(1);
+      expect(payload.summary.ads.different).toBe(1);
+      expect(payload.campaign_comparison.differences).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            field: "objective",
+            status: "different",
+          }),
+        ]),
+      );
+      expect(payload.adset_comparisons).toHaveLength(1);
+      expect(payload.ad_comparisons).toHaveLength(1);
+      expect(mockFetch).toHaveBeenCalledTimes(6);
+    });
+
+    it("should page through all ad sets and ads before comparing", async () => {
+      const tool = vi.fn();
+      registerCompositeTools({ tool } as unknown as McpServer);
+      const handler = getRegisteredToolHandler(
+        tool,
+        "meta_compare_campaign_trees",
+      );
+      vi.spyOn(metaClientModule, "createMetaClient").mockReturnValue(
+        new MetaClient({ accessToken: "test-token" }),
+      );
+
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: test-only URL dispatcher for paged mock responses
+      mockFetch.mockImplementation((input: string | URL) => {
+        const url = new URL(String(input));
+        const path = url.pathname;
+        const after = url.searchParams.get("after");
+
+        if (path.endsWith("/camp_src")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                id: "camp_src",
+                name: "Ref",
+                objective: "OUTCOME_TRAFFIC",
+                status: "PAUSED",
+                effective_status: "PAUSED",
+                created_time: "2026-03-01T00:00:00+0000",
+                updated_time: "2026-03-01T00:00:00+0000",
+                special_ad_categories: [],
+              },
+            }),
+          );
+        }
+
+        if (path.endsWith("/camp_tgt")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                id: "camp_tgt",
+                name: "Ref",
+                objective: "OUTCOME_TRAFFIC",
+                status: "PAUSED",
+                effective_status: "PAUSED",
+                created_time: "2026-03-01T00:00:00+0000",
+                updated_time: "2026-03-01T00:00:00+0000",
+                special_ad_categories: [],
+              },
+            }),
+          );
+        }
+
+        if (path.endsWith("/act_123/adsets")) {
+          if (after === "as_src_page_2") {
+            return Promise.resolve(
+              createMockResponse({
+                body: {
+                  data: [
+                    {
+                      id: "as_s_2",
+                      name: "Page 2 AS",
+                      campaign_id: "camp_src",
+                      status: "PAUSED",
+                      effective_status: "PAUSED",
+                      optimization_goal: "REACH",
+                      billing_event: "IMPRESSIONS",
+                      targeting: { geo_locations: { countries: ["US"] } },
+                    },
+                  ],
+                  paging: { cursors: { after: "" } },
+                },
+              }),
+            );
+          }
+
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                data: [
+                  {
+                    id: "as_s_1",
+                    name: "Page 1 AS",
+                    campaign_id: "camp_src",
+                    status: "PAUSED",
+                    effective_status: "PAUSED",
+                    optimization_goal: "LINK_CLICKS",
+                    billing_event: "IMPRESSIONS",
+                    targeting: { geo_locations: { countries: ["US"] } },
+                  },
+                ],
+                paging: {
+                  cursors: { after: "as_src_page_2" },
+                  next: "https://graph.facebook.com/v22.0/act_123/adsets?after=as_src_page_2",
+                },
+              },
+            }),
+          );
+        }
+
+        if (path.endsWith("/act_456/adsets")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                data: [
+                  {
+                    id: "as_t_1",
+                    name: "Page 1 AS",
+                    campaign_id: "camp_tgt",
+                    status: "PAUSED",
+                    effective_status: "PAUSED",
+                    optimization_goal: "LINK_CLICKS",
+                    billing_event: "IMPRESSIONS",
+                    targeting: { geo_locations: { countries: ["US"] } },
+                  },
+                ],
+                paging: { cursors: { after: "" } },
+              },
+            }),
+          );
+        }
+
+        if (path.endsWith("/camp_src/ads") || path.endsWith("/camp_tgt/ads")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: { data: [], paging: { cursors: { after: "" } } },
+            }),
+          );
+        }
+
+        throw new Error(`Unexpected URL in test: ${url.toString()}`);
+      });
+
+      const response = await handler(
+        {
+          source_campaign_id: "camp_src",
+          target_campaign_id: "camp_tgt",
+          source_account_id: "act_123",
+          target_account_id: "act_456",
+          response_format: "json",
+        },
+        {},
+      );
+
+      const payload = JSON.parse(response.content[0]?.text ?? "{}");
+      expect(payload.success).toBe(true);
+      expect(payload.summary.adsets.source_count).toBe(2);
+      expect(payload.summary.adsets.target_count).toBe(1);
+      expect(payload.summary.adsets.missing_in_target).toBe(1);
+      expect(mockFetch).toHaveBeenCalledTimes(7);
+    });
+
+    it("should pair duplicate-named ad sets by structural similarity", async () => {
+      const tool = vi.fn();
+      registerCompositeTools({ tool } as unknown as McpServer);
+      const handler = getRegisteredToolHandler(
+        tool,
+        "meta_compare_campaign_trees",
+      );
+      vi.spyOn(metaClientModule, "createMetaClient").mockReturnValue(
+        new MetaClient({ accessToken: "test-token" }),
+      );
+
+      mockFetch
+        .mockResolvedValueOnce(
+          createMockResponse({
+            body: {
+              id: "camp_src",
+              name: "Ref",
+              objective: "OUTCOME_TRAFFIC",
+              status: "PAUSED",
+              effective_status: "PAUSED",
+              created_time: "2026-03-01T00:00:00+0000",
+              updated_time: "2026-03-01T00:00:00+0000",
+              special_ad_categories: [],
+            },
+          }),
+        )
+        .mockResolvedValueOnce(
+          createMockResponse({
+            body: {
+              id: "camp_tgt",
+              name: "Ref",
+              objective: "OUTCOME_TRAFFIC",
+              status: "PAUSED",
+              effective_status: "PAUSED",
+              created_time: "2026-03-01T00:00:00+0000",
+              updated_time: "2026-03-01T00:00:00+0000",
+              special_ad_categories: [],
+            },
+          }),
+        )
+        // Source ad sets with duplicate names
+        .mockResolvedValueOnce(
+          createMockResponse({
+            body: {
+              data: [
+                {
+                  id: "as_src_1",
+                  name: "Duplicate Name",
+                  campaign_id: "camp_src",
+                  status: "PAUSED",
+                  effective_status: "PAUSED",
+                  optimization_goal: "LINK_CLICKS",
+                  billing_event: "IMPRESSIONS",
+                  targeting: { geo_locations: { countries: ["US"] } },
+                },
+                {
+                  id: "as_src_2",
+                  name: "Duplicate Name",
+                  campaign_id: "camp_src",
+                  status: "PAUSED",
+                  effective_status: "PAUSED",
+                  optimization_goal: "REACH",
+                  billing_event: "IMPRESSIONS",
+                  targeting: { geo_locations: { countries: ["US"] } },
+                },
+              ],
+              paging: { cursors: { after: "" } },
+            },
+          }),
+        )
+        // Target ad sets same names, swapped IDs/order
+        .mockResolvedValueOnce(
+          createMockResponse({
+            body: {
+              data: [
+                {
+                  id: "as_tgt_99",
+                  name: "Duplicate Name",
+                  campaign_id: "camp_tgt",
+                  status: "PAUSED",
+                  effective_status: "PAUSED",
+                  optimization_goal: "REACH",
+                  billing_event: "IMPRESSIONS",
+                  targeting: { geo_locations: { countries: ["US"] } },
+                },
+                {
+                  id: "as_tgt_01",
+                  name: "Duplicate Name",
+                  campaign_id: "camp_tgt",
+                  status: "PAUSED",
+                  effective_status: "PAUSED",
+                  optimization_goal: "LINK_CLICKS",
+                  billing_event: "IMPRESSIONS",
+                  targeting: { geo_locations: { countries: ["US"] } },
+                },
+              ],
+              paging: { cursors: { after: "" } },
+            },
+          }),
+        )
+        // Source ads
+        .mockResolvedValueOnce(
+          createMockResponse({
+            body: { data: [], paging: { cursors: { after: "" } } },
+          }),
+        )
+        // Target ads
+        .mockResolvedValueOnce(
+          createMockResponse({
+            body: { data: [], paging: { cursors: { after: "" } } },
+          }),
+        );
+
+      const response = await handler(
+        {
+          source_campaign_id: "camp_src",
+          target_campaign_id: "camp_tgt",
+          source_account_id: "act_123",
+          target_account_id: "act_456",
+          include_matches: true,
+          response_format: "json",
+        },
+        {},
+      );
+
+      const payload = JSON.parse(response.content[0]?.text ?? "{}");
+      expect(payload.success).toBe(true);
+      expect(payload.summary.adsets.compared).toBe(2);
+      expect(payload.summary.adsets.matched).toBe(2);
+      expect(payload.summary.adsets.different).toBe(0);
+      expect(payload.adset_comparisons).toHaveLength(2);
+      expect(mockFetch).toHaveBeenCalledTimes(6);
+    });
+
+    it("should detect ads moved between paired ad sets", async () => {
+      const tool = vi.fn();
+      registerCompositeTools({ tool } as unknown as McpServer);
+      const handler = getRegisteredToolHandler(
+        tool,
+        "meta_compare_campaign_trees",
+      );
+      vi.spyOn(metaClientModule, "createMetaClient").mockReturnValue(
+        new MetaClient({ accessToken: "test-token" }),
+      );
+
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: test-only URL dispatcher for hierarchy mismatch scenario
+      mockFetch.mockImplementation((input: string | URL) => {
+        const url = new URL(String(input));
+        const path = url.pathname;
+
+        if (path.endsWith("/camp_src")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                id: "camp_src",
+                name: "Hierarchy Test",
+                objective: "OUTCOME_TRAFFIC",
+                status: "PAUSED",
+                effective_status: "PAUSED",
+                special_ad_categories: [],
+              },
+            }),
+          );
+        }
+        if (path.endsWith("/camp_tgt")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                id: "camp_tgt",
+                name: "Hierarchy Test",
+                objective: "OUTCOME_TRAFFIC",
+                status: "PAUSED",
+                effective_status: "PAUSED",
+                special_ad_categories: [],
+              },
+            }),
+          );
+        }
+        if (path.endsWith("/act_123/adsets")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                data: [
+                  {
+                    id: "as_src_a",
+                    name: "Group A",
+                    campaign_id: "camp_src",
+                    status: "PAUSED",
+                    effective_status: "PAUSED",
+                    optimization_goal: "LINK_CLICKS",
+                    billing_event: "IMPRESSIONS",
+                    targeting: { geo_locations: { countries: ["US"] } },
+                  },
+                  {
+                    id: "as_src_b",
+                    name: "Group B",
+                    campaign_id: "camp_src",
+                    status: "PAUSED",
+                    effective_status: "PAUSED",
+                    optimization_goal: "REACH",
+                    billing_event: "IMPRESSIONS",
+                    targeting: { geo_locations: { countries: ["US"] } },
+                  },
+                ],
+              },
+            }),
+          );
+        }
+        if (path.endsWith("/act_456/adsets")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                data: [
+                  {
+                    id: "as_tgt_a",
+                    name: "Group A",
+                    campaign_id: "camp_tgt",
+                    status: "PAUSED",
+                    effective_status: "PAUSED",
+                    optimization_goal: "LINK_CLICKS",
+                    billing_event: "IMPRESSIONS",
+                    targeting: { geo_locations: { countries: ["US"] } },
+                  },
+                  {
+                    id: "as_tgt_b",
+                    name: "Group B",
+                    campaign_id: "camp_tgt",
+                    status: "PAUSED",
+                    effective_status: "PAUSED",
+                    optimization_goal: "REACH",
+                    billing_event: "IMPRESSIONS",
+                    targeting: { geo_locations: { countries: ["US"] } },
+                  },
+                ],
+              },
+            }),
+          );
+        }
+        if (path.endsWith("/camp_src/ads")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                data: [
+                  {
+                    id: "ad_s_1",
+                    name: "Ad One",
+                    adset_id: "as_src_a",
+                    campaign_id: "camp_src",
+                    status: "PAUSED",
+                    effective_status: "PAUSED",
+                    creative: { id: "cr1", body: "Body A", title: "Title A" },
+                  },
+                  {
+                    id: "ad_s_2",
+                    name: "Ad Two",
+                    adset_id: "as_src_b",
+                    campaign_id: "camp_src",
+                    status: "PAUSED",
+                    effective_status: "PAUSED",
+                    creative: { id: "cr2", body: "Body B", title: "Title B" },
+                  },
+                ],
+              },
+            }),
+          );
+        }
+        if (path.endsWith("/camp_tgt/ads")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                data: [
+                  {
+                    id: "ad_t_1",
+                    name: "Ad One",
+                    adset_id: "as_tgt_b",
+                    campaign_id: "camp_tgt",
+                    status: "PAUSED",
+                    effective_status: "PAUSED",
+                    creative: { id: "cr9", body: "Body A", title: "Title A" },
+                  },
+                  {
+                    id: "ad_t_2",
+                    name: "Ad Two",
+                    adset_id: "as_tgt_a",
+                    campaign_id: "camp_tgt",
+                    status: "PAUSED",
+                    effective_status: "PAUSED",
+                    creative: { id: "cr8", body: "Body B", title: "Title B" },
+                  },
+                ],
+              },
+            }),
+          );
+        }
+
+        throw new Error(`Unexpected URL in hierarchy test: ${url.toString()}`);
+      });
+
+      const response = await handler(
+        {
+          source_campaign_id: "camp_src",
+          target_campaign_id: "camp_tgt",
+          source_account_id: "act_123",
+          target_account_id: "act_456",
+          response_format: "json",
+        },
+        {},
+      );
+
+      const payload = JSON.parse(response.content[0]?.text ?? "{}");
+      expect(payload.success).toBe(true);
+      expect(payload.summary.campaign_match).toBe(true);
+      expect(payload.summary.adsets.matched).toBe(2);
+      expect(payload.summary.ads.matched).toBe(0);
+      expect(payload.summary.ads.different).toBeGreaterThan(0);
+      expect(payload.match).toBe(false);
     });
   });
 });

@@ -461,6 +461,7 @@ describe("MetaClient", () => {
       expect(result).toEqual(mockData);
       const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
       expect(calledUrl).toContain("/act_123/campaigns");
+      expect(calledUrl).toContain("summary=true");
     });
 
     it("should apply status filter", async () => {
@@ -978,20 +979,18 @@ describe("MetaClient", () => {
         createMockResponse({ body: { success: true } }),
       );
 
+      const samplePromotedObject = {
+        pixel_id: "pixel_456",
+        custom_event_type: "PURCHASE",
+      };
       const client = new MetaClient({ accessToken: "token" });
       await client.updateAdSet("adset_123", {
-        promoted_object: {
-          pixel_id: "pixel_456",
-          custom_event_type: "PURCHASE",
-        },
+        promoted_object: samplePromotedObject,
       });
 
       const options = mockFetch.mock.calls[0]?.[1] as RequestInit;
       const body = JSON.parse(options.body as string);
-      expect(JSON.parse(body.promoted_object as string)).toEqual({
-        pixel_id: "pixel_456",
-        custom_event_type: "PURCHASE",
-      });
+      expect(body.promoted_object).toBe(JSON.stringify(samplePromotedObject));
     });
 
     it("should not include promoted_object when not provided", async () => {

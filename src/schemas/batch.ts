@@ -52,6 +52,12 @@ const adSchema = z
     creative_id: z.string().optional(),
     creative_ref: z.string().optional(),
     creative: creativeSpecSchema.optional(),
+    tracking_specs: z
+      .array(z.record(z.unknown()))
+      .optional()
+      .describe(
+        'Tracking specs for conversion tracking, e.g. [{"action.type": ["offsite_conversion"], "fb_pixel": ["466195414027782"]}]',
+      ),
   })
   .strict()
   .superRefine((ad, ctx) => {

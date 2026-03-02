@@ -1085,6 +1085,9 @@ export async function executeBatch(
           adset_id: job.adSetId,
           creative: { creative_id: creativeId },
           status: job.ad.status ?? "PAUSED",
+          ...(job.ad.tracking_specs
+            ? { tracking_specs: job.ad.tracking_specs }
+            : {}),
         });
       } catch (error) {
         const errorOptions: {

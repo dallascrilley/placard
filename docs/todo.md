@@ -80,6 +80,18 @@
   - `pnpm test` passed (`12/12` files, `249/249` tests)
   - `pnpm validate:descriptions` passed (`Total tools found: 40`)
 
+## Rate Limiting Hardening (2026-03-01)
+- [x] Add built-in request pacing in `MetaClient` to reduce ad-account API burst traffic
+- [x] Keep retry behavior for transient/rate-limit responses, but avoid immediate burst retries
+- [x] Add regression tests for proactive pacing behavior
+- [x] Run validation (`qa`)
+
+## Review (Rate Limiting Hardening)
+- [x] Root cause fixed: shared global request queue now spaces all Meta API calls (`META_API_MIN_REQUEST_INTERVAL_MS`) and applies cooldown after rate-limit errors (`META_API_RATE_LIMIT_COOLDOWN_MS`) to prevent immediate retry bursts.
+- [x] Follow-up hardening: cooldown now triggers on `RateLimitError` class even for unmapped Meta `error.code` values, and delay env parsing now safely falls back on invalid/empty inputs instead of propagating `NaN`.
+- [x] Follow-up hardening: limiter timing now uses monotonic `performance.now()` and limiter state is keyed per ad-account (`account:act_*`) with per-user fallback for non-account endpoints.
+- [x] Validation evidence: `pnpm vitest run src/__tests__/api/meta-client.test.ts` passed (`89/89`); `qa` passed (typecheck + lint warnings-only + vitest `317/317` passed).
+
 ## Post-Review Suggestions Round 2 (2026-03-01)
 - [x] Add `EVENT_RESPONSES` + `destination_type` batch warning when value is missing or not `ON_EVENT`
 - [x] Add `event_id` support to creative shorthand template (`buildObjectStorySpecFromTemplate`)

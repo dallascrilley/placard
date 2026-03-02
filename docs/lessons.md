@@ -13,3 +13,8 @@
 - Review feedback: when source payload fields can be polymorphic (`string | string[]`), normalize with explicit type guards instead of direct casts.
 - Review feedback: fallback-generated resource names should include uniqueness suffixes to avoid operational collisions in repeated clone workflows.
 - Prevention rule: add a regression test whenever duplication logic depends on optional upstream fields (`name`, `pacing_type`, `summary.total_count`).
+
+## 2026-03-01 - Research-first when requested
+- When the user asks for external guidance before implementation, pause code changes and run primary-source research first (Meta docs via Context7), then encode the resulting constraints into defaults/config knobs.
+- Treat typed error classes as primary signals (e.g., `RateLimitError`) and keep numeric code lists as secondary fallbacks so unmapped provider codes still trigger safety behavior.
+- Parse numeric env config defensively; invalid or empty values must fall back to safe defaults rather than propagating `NaN` into control flow.

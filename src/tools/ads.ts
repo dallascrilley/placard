@@ -401,6 +401,7 @@ Args:
   - adset_id (string, required): Parent ad set ID
   - creative_id (string, optional): Existing creative ID to use (required if creative not provided)
   - creative (object, optional): Inline creative specification. Supported inline path is object_story_spec-based creative only (required if creative_id not provided). For dynamic creative via asset_feed_spec, create the creative first with meta_create_ad_creative and then pass creative_id here.
+  - tracking_specs (array, optional): Tracking specifications for conversion tracking. Each spec is an object with action.type and pixel ID. Example: [{"action.type": ["offsite_conversion"], "fb_pixel": ["466195414027782"]}]
   - status (string, optional): Initial ad status - ACTIVE or PAUSED (default: PAUSED)
   - user_id (string, optional): User ID for multi-user auth (default: 'default')
 
@@ -435,6 +436,12 @@ Errors:
         .record(z.unknown())
         .optional()
         .describe("Inline creative specification (if not using creative_id)"),
+      tracking_specs: z
+        .array(z.record(z.unknown()))
+        .optional()
+        .describe(
+          'Tracking specs for conversion tracking, e.g. [{"action.type": ["offsite_conversion"], "fb_pixel": ["466195414027782"]}]',
+        ),
       status: z
         .enum(["ACTIVE", "PAUSED"])
         .optional()
@@ -445,7 +452,15 @@ Errors:
     CREATE_ANNOTATIONS,
     withToolHandler(
       async (
-        { account_id, name, adset_id, creative_id, creative, status },
+        {
+          account_id,
+          name,
+          adset_id,
+          creative_id,
+          creative,
+          tracking_specs,
+          status,
+        },
         { client, format },
       ) => {
         const normalizedId = normalizeAccountId(account_id);
@@ -474,6 +489,7 @@ Errors:
           adset_id,
           creative: creativeSpec,
           status: status ?? "PAUSED",
+          ...(tracking_specs ? { tracking_specs } : {}),
         });
 
         return createSuccessResponse(

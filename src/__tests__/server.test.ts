@@ -108,7 +108,7 @@ describe("createServer", () => {
 
       const server = createServer();
       const registeredTools = (
-        server as {
+        server as unknown as {
           _registeredTools?: Record<string, unknown>;
           tools?: unknown;
         }

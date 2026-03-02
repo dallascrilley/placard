@@ -37,6 +37,7 @@ function parseToolResponseText(response: { content: Array<{ text: string }> }) {
 describe("Composite Tools", () => {
   beforeEach(() => {
     mockFetch.mockReset();
+    MetaClient.resetRateLimiterStateForTests();
   });
 
   afterEach(() => {
@@ -283,7 +284,10 @@ describe("Composite Tools", () => {
           }),
         );
 
-      const client = new MetaClient({ accessToken: "test-token" });
+      const client = new MetaClient({
+        accessToken: "test-token",
+        minRequestIntervalMs: 0,
+      });
 
       const campaign = await client.getCampaignDetails("camp_1");
       const adsets = await client.getAdSets("act_123", {
@@ -324,7 +328,10 @@ describe("Composite Tools", () => {
           }),
         );
 
-      const client = new MetaClient({ accessToken: "test-token" });
+      const client = new MetaClient({
+        accessToken: "test-token",
+        minRequestIntervalMs: 0,
+      });
       const campaign = await client.getCampaignDetails("camp_2");
       const adsets = await client.getAdSets("act_123", {
         campaign_id: "camp_2",
@@ -385,7 +392,10 @@ describe("Composite Tools", () => {
           }),
         );
 
-      const client = new MetaClient({ accessToken: "test-token" });
+      const client = new MetaClient({
+        accessToken: "test-token",
+        minRequestIntervalMs: 0,
+      });
       const account = await client.getAccountInfo("act_123");
       const campaigns = await client.getCampaigns("act_123", { limit: 100 });
       const insights = await client.getInsights("act_123", {
@@ -425,7 +435,10 @@ describe("Composite Tools", () => {
           }),
         );
 
-      const client = new MetaClient({ accessToken: "test-token" });
+      const client = new MetaClient({
+        accessToken: "test-token",
+        minRequestIntervalMs: 0,
+      });
       const account = await client.getAccountInfo("act_456");
       const campaigns = await client.getCampaigns("act_456", { limit: 100 });
 
@@ -483,7 +496,10 @@ describe("Composite Tools", () => {
         }),
       );
 
-      const client = new MetaClient({ accessToken: "test-token" });
+      const client = new MetaClient({
+        accessToken: "test-token",
+        minRequestIntervalMs: 0,
+      });
       const response = await client.getAds("act_123", { limit: 100 });
 
       const keyword = "bridal show";
@@ -517,7 +533,10 @@ describe("Composite Tools", () => {
         }),
       );
 
-      const client = new MetaClient({ accessToken: "test-token" });
+      const client = new MetaClient({
+        accessToken: "test-token",
+        minRequestIntervalMs: 0,
+      });
       const response = await client.getAds("act_123", { limit: 100 });
 
       const keyword = "bridal";
@@ -575,7 +594,10 @@ describe("Composite Tools", () => {
           }),
         );
 
-      const client = new MetaClient({ accessToken: "test-token" });
+      const client = new MetaClient({
+        accessToken: "test-token",
+        minRequestIntervalMs: 0,
+      });
       const page1 = await client.getAds("act_123", { limit: 1 });
       const page2 = await client.getAds("act_123", {
         limit: 1,
@@ -607,7 +629,10 @@ describe("Composite Tools", () => {
         }),
       );
 
-      const client = new MetaClient({ accessToken: "test-token" });
+      const client = new MetaClient({
+        accessToken: "test-token",
+        minRequestIntervalMs: 0,
+      });
       const result = await client.searchTargeting(
         "adinterestvalid",
         "6003139266461",
@@ -630,7 +655,10 @@ describe("Composite Tools", () => {
         }),
       );
 
-      const client = new MetaClient({ accessToken: "test-token" });
+      const client = new MetaClient({
+        accessToken: "test-token",
+        minRequestIntervalMs: 0,
+      });
       const targeting = {
         age_min: 25,
         age_max: 45,
@@ -672,7 +700,10 @@ describe("Composite Tools", () => {
           }),
         );
 
-      const client = new MetaClient({ accessToken: "test-token" });
+      const client = new MetaClient({
+        accessToken: "test-token",
+        minRequestIntervalMs: 0,
+      });
       const interestResult = await client.searchTargeting(
         "adinterestvalid",
         "6003139266461",
@@ -698,112 +729,130 @@ describe("Composite Tools", () => {
         "meta_compare_campaign_trees",
       );
       vi.spyOn(metaClientModule, "createMetaClient").mockReturnValue(
-        new MetaClient({ accessToken: "test-token" }),
+        new MetaClient({ accessToken: "test-token", minRequestIntervalMs: 0 }),
       );
 
-      mockFetch
-        .mockResolvedValueOnce(
-          createMockResponse({
-            body: {
-              id: "camp_src",
-              name: "Reference Campaign",
-              objective: "OUTCOME_TRAFFIC",
-              status: "PAUSED",
-              effective_status: "PAUSED",
-              created_time: "2026-03-01T00:00:00+0000",
-              updated_time: "2026-03-01T00:00:00+0000",
-              special_ad_categories: [],
-            },
-          }),
-        )
-        .mockResolvedValueOnce(
-          createMockResponse({
-            body: {
-              id: "camp_tgt",
-              name: "Reference Campaign",
-              objective: "OUTCOME_LEADS",
-              status: "PAUSED",
-              effective_status: "PAUSED",
-              created_time: "2026-03-02T00:00:00+0000",
-              updated_time: "2026-03-02T00:00:00+0000",
-              special_ad_categories: [],
-            },
-          }),
-        )
-        .mockResolvedValueOnce(
-          createMockResponse({
-            body: {
-              data: [
-                {
-                  id: "as_1",
-                  name: "Ad Set Alpha",
-                  campaign_id: "camp_src",
-                  status: "PAUSED",
-                  effective_status: "PAUSED",
-                  optimization_goal: "LINK_CLICKS",
-                  billing_event: "IMPRESSIONS",
-                  targeting: { geo_locations: { countries: ["US"] } },
-                  created_time: "2026-03-01T00:00:00+0000",
-                  updated_time: "2026-03-01T00:00:00+0000",
-                },
-              ],
-            },
-          }),
-        )
-        .mockResolvedValueOnce(
-          createMockResponse({
-            body: {
-              data: [
-                {
-                  id: "as_2",
-                  name: "Ad Set Alpha",
-                  campaign_id: "camp_tgt",
-                  status: "PAUSED",
-                  effective_status: "PAUSED",
-                  optimization_goal: "REACH",
-                  billing_event: "IMPRESSIONS",
-                  targeting: { geo_locations: { countries: ["US"] } },
-                  created_time: "2026-03-02T00:00:00+0000",
-                  updated_time: "2026-03-02T00:00:00+0000",
-                },
-              ],
-            },
-          }),
-        )
-        .mockResolvedValueOnce(
-          createMockResponse({
-            body: {
-              data: [
-                {
-                  id: "ad_1",
-                  name: "Ad Variant A",
-                  adset_id: "as_1",
-                  campaign_id: "camp_src",
-                  status: "PAUSED",
-                  effective_status: "PAUSED",
-                  creative: { id: "cr_1", body: "Buy now", title: "Sale" },
-                },
-              ],
-            },
-          }),
-        )
-        .mockResolvedValueOnce(
-          createMockResponse({
-            body: {
-              data: [
-                {
-                  id: "ad_2",
-                  name: "Ad Variant A",
-                  adset_id: "as_2",
-                  campaign_id: "camp_tgt",
-                  status: "PAUSED",
-                  effective_status: "PAUSED",
-                  creative: { id: "cr_2", body: "Learn more", title: "Sale" },
-                },
-              ],
-            },
-          }),
-        );
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: test-only URL dispatcher for compare mock responses
+      mockFetch.mockImplementation((input: string | URL) => {
+        const url = new URL(String(input));
+        const path = url.pathname;
+
+        if (path.endsWith("/camp_src")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                id: "camp_src",
+                name: "Reference Campaign",
+                objective: "OUTCOME_TRAFFIC",
+                status: "PAUSED",
+                effective_status: "PAUSED",
+                created_time: "2026-03-01T00:00:00+0000",
+                updated_time: "2026-03-01T00:00:00+0000",
+                special_ad_categories: [],
+              },
+            }),
+          );
+        }
+        if (path.endsWith("/camp_tgt")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                id: "camp_tgt",
+                name: "Reference Campaign",
+                objective: "OUTCOME_LEADS",
+                status: "PAUSED",
+                effective_status: "PAUSED",
+                created_time: "2026-03-02T00:00:00+0000",
+                updated_time: "2026-03-02T00:00:00+0000",
+                special_ad_categories: [],
+              },
+            }),
+          );
+        }
+        if (path.endsWith("/act_123/adsets")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                data: [
+                  {
+                    id: "as_1",
+                    name: "Ad Set Alpha",
+                    campaign_id: "camp_src",
+                    status: "PAUSED",
+                    effective_status: "PAUSED",
+                    optimization_goal: "LINK_CLICKS",
+                    billing_event: "IMPRESSIONS",
+                    targeting: { geo_locations: { countries: ["US"] } },
+                    created_time: "2026-03-01T00:00:00+0000",
+                    updated_time: "2026-03-01T00:00:00+0000",
+                  },
+                ],
+              },
+            }),
+          );
+        }
+        if (path.endsWith("/act_456/adsets")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                data: [
+                  {
+                    id: "as_2",
+                    name: "Ad Set Alpha",
+                    campaign_id: "camp_tgt",
+                    status: "PAUSED",
+                    effective_status: "PAUSED",
+                    optimization_goal: "REACH",
+                    billing_event: "IMPRESSIONS",
+                    targeting: { geo_locations: { countries: ["US"] } },
+                    created_time: "2026-03-02T00:00:00+0000",
+                    updated_time: "2026-03-02T00:00:00+0000",
+                  },
+                ],
+              },
+            }),
+          );
+        }
+        if (path.endsWith("/camp_src/ads")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                data: [
+                  {
+                    id: "ad_1",
+                    name: "Ad Variant A",
+                    adset_id: "as_1",
+                    campaign_id: "camp_src",
+                    status: "PAUSED",
+                    effective_status: "PAUSED",
+                    creative: { id: "cr_1", body: "Buy now", title: "Sale" },
+                  },
+                ],
+              },
+            }),
+          );
+        }
+        if (path.endsWith("/camp_tgt/ads")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                data: [
+                  {
+                    id: "ad_2",
+                    name: "Ad Variant A",
+                    adset_id: "as_2",
+                    campaign_id: "camp_tgt",
+                    status: "PAUSED",
+                    effective_status: "PAUSED",
+                    creative: { id: "cr_2", body: "Learn more", title: "Sale" },
+                  },
+                ],
+              },
+            }),
+          );
+        }
+        throw new Error(`Unexpected URL in test: ${url.toString()}`);
+      });
 
       const response = await handler(
         {
@@ -843,7 +892,7 @@ describe("Composite Tools", () => {
         "meta_compare_campaign_trees",
       );
       vi.spyOn(metaClientModule, "createMetaClient").mockReturnValue(
-        new MetaClient({ accessToken: "test-token" }),
+        new MetaClient({ accessToken: "test-token", minRequestIntervalMs: 0 }),
       );
 
       // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: test-only URL dispatcher for paged mock responses
@@ -993,110 +1042,120 @@ describe("Composite Tools", () => {
         "meta_compare_campaign_trees",
       );
       vi.spyOn(metaClientModule, "createMetaClient").mockReturnValue(
-        new MetaClient({ accessToken: "test-token" }),
+        new MetaClient({ accessToken: "test-token", minRequestIntervalMs: 0 }),
       );
 
-      mockFetch
-        .mockResolvedValueOnce(
-          createMockResponse({
-            body: {
-              id: "camp_src",
-              name: "Ref",
-              objective: "OUTCOME_TRAFFIC",
-              status: "PAUSED",
-              effective_status: "PAUSED",
-              created_time: "2026-03-01T00:00:00+0000",
-              updated_time: "2026-03-01T00:00:00+0000",
-              special_ad_categories: [],
-            },
-          }),
-        )
-        .mockResolvedValueOnce(
-          createMockResponse({
-            body: {
-              id: "camp_tgt",
-              name: "Ref",
-              objective: "OUTCOME_TRAFFIC",
-              status: "PAUSED",
-              effective_status: "PAUSED",
-              created_time: "2026-03-01T00:00:00+0000",
-              updated_time: "2026-03-01T00:00:00+0000",
-              special_ad_categories: [],
-            },
-          }),
-        )
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: test-only URL dispatcher for duplicate-name mock responses
+      mockFetch.mockImplementation((input: string | URL) => {
+        const url = new URL(String(input));
+        const path = url.pathname;
+
+        if (path.endsWith("/camp_src")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                id: "camp_src",
+                name: "Ref",
+                objective: "OUTCOME_TRAFFIC",
+                status: "PAUSED",
+                effective_status: "PAUSED",
+                created_time: "2026-03-01T00:00:00+0000",
+                updated_time: "2026-03-01T00:00:00+0000",
+                special_ad_categories: [],
+              },
+            }),
+          );
+        }
+        if (path.endsWith("/camp_tgt")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                id: "camp_tgt",
+                name: "Ref",
+                objective: "OUTCOME_TRAFFIC",
+                status: "PAUSED",
+                effective_status: "PAUSED",
+                created_time: "2026-03-01T00:00:00+0000",
+                updated_time: "2026-03-01T00:00:00+0000",
+                special_ad_categories: [],
+              },
+            }),
+          );
+        }
         // Source ad sets with duplicate names
-        .mockResolvedValueOnce(
-          createMockResponse({
-            body: {
-              data: [
-                {
-                  id: "as_src_1",
-                  name: "Duplicate Name",
-                  campaign_id: "camp_src",
-                  status: "PAUSED",
-                  effective_status: "PAUSED",
-                  optimization_goal: "LINK_CLICKS",
-                  billing_event: "IMPRESSIONS",
-                  targeting: { geo_locations: { countries: ["US"] } },
-                },
-                {
-                  id: "as_src_2",
-                  name: "Duplicate Name",
-                  campaign_id: "camp_src",
-                  status: "PAUSED",
-                  effective_status: "PAUSED",
-                  optimization_goal: "REACH",
-                  billing_event: "IMPRESSIONS",
-                  targeting: { geo_locations: { countries: ["US"] } },
-                },
-              ],
-              paging: { cursors: { after: "" } },
-            },
-          }),
-        )
+        if (path.endsWith("/act_123/adsets")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                data: [
+                  {
+                    id: "as_src_1",
+                    name: "Duplicate Name",
+                    campaign_id: "camp_src",
+                    status: "PAUSED",
+                    effective_status: "PAUSED",
+                    optimization_goal: "LINK_CLICKS",
+                    billing_event: "IMPRESSIONS",
+                    targeting: { geo_locations: { countries: ["US"] } },
+                  },
+                  {
+                    id: "as_src_2",
+                    name: "Duplicate Name",
+                    campaign_id: "camp_src",
+                    status: "PAUSED",
+                    effective_status: "PAUSED",
+                    optimization_goal: "REACH",
+                    billing_event: "IMPRESSIONS",
+                    targeting: { geo_locations: { countries: ["US"] } },
+                  },
+                ],
+                paging: { cursors: { after: "" } },
+              },
+            }),
+          );
+        }
         // Target ad sets same names, swapped IDs/order
-        .mockResolvedValueOnce(
-          createMockResponse({
-            body: {
-              data: [
-                {
-                  id: "as_tgt_99",
-                  name: "Duplicate Name",
-                  campaign_id: "camp_tgt",
-                  status: "PAUSED",
-                  effective_status: "PAUSED",
-                  optimization_goal: "REACH",
-                  billing_event: "IMPRESSIONS",
-                  targeting: { geo_locations: { countries: ["US"] } },
-                },
-                {
-                  id: "as_tgt_01",
-                  name: "Duplicate Name",
-                  campaign_id: "camp_tgt",
-                  status: "PAUSED",
-                  effective_status: "PAUSED",
-                  optimization_goal: "LINK_CLICKS",
-                  billing_event: "IMPRESSIONS",
-                  targeting: { geo_locations: { countries: ["US"] } },
-                },
-              ],
-              paging: { cursors: { after: "" } },
-            },
-          }),
-        )
-        // Source ads
-        .mockResolvedValueOnce(
-          createMockResponse({
-            body: { data: [], paging: { cursors: { after: "" } } },
-          }),
-        )
-        // Target ads
-        .mockResolvedValueOnce(
-          createMockResponse({
-            body: { data: [], paging: { cursors: { after: "" } } },
-          }),
-        );
+        if (path.endsWith("/act_456/adsets")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: {
+                data: [
+                  {
+                    id: "as_tgt_99",
+                    name: "Duplicate Name",
+                    campaign_id: "camp_tgt",
+                    status: "PAUSED",
+                    effective_status: "PAUSED",
+                    optimization_goal: "REACH",
+                    billing_event: "IMPRESSIONS",
+                    targeting: { geo_locations: { countries: ["US"] } },
+                  },
+                  {
+                    id: "as_tgt_01",
+                    name: "Duplicate Name",
+                    campaign_id: "camp_tgt",
+                    status: "PAUSED",
+                    effective_status: "PAUSED",
+                    optimization_goal: "LINK_CLICKS",
+                    billing_event: "IMPRESSIONS",
+                    targeting: { geo_locations: { countries: ["US"] } },
+                  },
+                ],
+                paging: { cursors: { after: "" } },
+              },
+            }),
+          );
+        }
+        // Source and target ads (empty)
+        if (path.endsWith("/camp_src/ads") || path.endsWith("/camp_tgt/ads")) {
+          return Promise.resolve(
+            createMockResponse({
+              body: { data: [], paging: { cursors: { after: "" } } },
+            }),
+          );
+        }
+        throw new Error(`Unexpected URL in test: ${url.toString()}`);
+      });
 
       const response = await handler(
         {
@@ -1127,7 +1186,7 @@ describe("Composite Tools", () => {
         "meta_compare_campaign_trees",
       );
       vi.spyOn(metaClientModule, "createMetaClient").mockReturnValue(
-        new MetaClient({ accessToken: "test-token" }),
+        new MetaClient({ accessToken: "test-token", minRequestIntervalMs: 0 }),
       );
 
       // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: test-only URL dispatcher for hierarchy mismatch scenario

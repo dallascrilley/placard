@@ -1,7 +1,12 @@
 import { readFile } from "node:fs/promises";
+import { performance } from "node:perf_hooks";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MetaAuth } from "../../api/auth.js";
-import { AuthenticationError, MetaApiError } from "../../api/error-handling.js";
+import {
+  AuthenticationError,
+  MetaApiError,
+  RateLimitError,
+} from "../../api/error-handling.js";
 import { MetaClient, createMetaClient } from "../../api/meta-client.js";
 import {
   createMetaErrorBody,
@@ -23,6 +28,8 @@ vi.spyOn(console, "error").mockImplementation(() => {});
 describe("MetaClient", () => {
   beforeEach(() => {
     mockFetch.mockReset();
+    MetaClient.resetRateLimiterStateForTests();
+    vi.spyOn(performance, "now").mockImplementation(() => Date.now());
   });
 
   afterEach(() => {
@@ -78,6 +85,44 @@ describe("MetaClient", () => {
       await client.getAdAccounts();
 
       expect(mockAuth.getAccessTokenForUser).toHaveBeenCalledWith("user-123");
+    });
+
+    it("should fall back to defaults for invalid rate-limit env values", async () => {
+      const previousMin = process.env["META_API_MIN_REQUEST_INTERVAL_MS"];
+      const previousCooldown = process.env["META_API_RATE_LIMIT_COOLDOWN_MS"];
+      process.env["META_API_MIN_REQUEST_INTERVAL_MS"] = "";
+      process.env["META_API_RATE_LIMIT_COOLDOWN_MS"] = "oops";
+
+      vi.useFakeTimers();
+      try {
+        mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+        const client = new MetaClient({ accessToken: "token" });
+
+        const first = client.getAdAccounts();
+        await vi.advanceTimersByTimeAsync(0);
+        await first;
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+
+        const second = client.getAdAccounts();
+        await vi.advanceTimersByTimeAsync(900);
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+
+        await vi.advanceTimersByTimeAsync(100);
+        await second;
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.useRealTimers();
+        if (previousMin === undefined) {
+          process.env["META_API_MIN_REQUEST_INTERVAL_MS"] = undefined;
+        } else {
+          process.env["META_API_MIN_REQUEST_INTERVAL_MS"] = previousMin;
+        }
+        if (previousCooldown === undefined) {
+          process.env["META_API_RATE_LIMIT_COOLDOWN_MS"] = undefined;
+        } else {
+          process.env["META_API_RATE_LIMIT_COOLDOWN_MS"] = previousCooldown;
+        }
+      }
     });
   });
 
@@ -1361,6 +1406,143 @@ describe("MetaClient", () => {
 
       const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
       expect(calledUrl).toContain("date_preset=last_30d");
+    });
+  });
+
+  describe("request pacing", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("should pace consecutive requests by minRequestIntervalMs", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+      const client = new MetaClient({
+        accessToken: "token",
+        minRequestIntervalMs: 1000,
+      });
+
+      const first = client.getAdAccounts();
+      await vi.advanceTimersByTimeAsync(0);
+      await first;
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      const second = client.getAdAccounts();
+      await vi.advanceTimersByTimeAsync(900);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(100);
+      await second;
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("should apply cooldown before retrying a rate-limited request", async () => {
+      mockFetch
+        .mockResolvedValueOnce(
+          createMockResponse({
+            status: 429,
+            body: createMetaErrorBody(
+              17,
+              "There have been too many calls from this ad-account. Please wait a bit and try again.",
+            ),
+          }),
+        )
+        .mockResolvedValueOnce(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({
+        accessToken: "token",
+        maxRetries: 1,
+        minRequestIntervalMs: 0,
+        rateLimitCooldownMs: 5000,
+      });
+
+      const pending = client.getAdAccounts();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      // Base retry backoff (1s) fires first, but cooldown should still block.
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(4001);
+      await pending;
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("should not serialize different ad-account queues", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+      const client = new MetaClient({
+        accessToken: "token",
+        minRequestIntervalMs: 1000,
+      });
+
+      const first = client.getCampaigns("act_111");
+      await vi.advanceTimersByTimeAsync(0);
+      await first;
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      const second = client.getCampaigns("act_222");
+      await vi.advanceTimersByTimeAsync(0);
+      await second;
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("should apply cooldown for RateLimitError even when code is unmapped", async () => {
+      const unmappedRateLimitError = new RateLimitError(
+        createMetaErrorBody(999, "Unmapped rate limit"),
+        1,
+      );
+      mockFetch
+        .mockRejectedValueOnce(unmappedRateLimitError)
+        .mockResolvedValueOnce(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({
+        accessToken: "token",
+        maxRetries: 0,
+        minRequestIntervalMs: 0,
+        rateLimitCooldownMs: 2000,
+      });
+
+      await expect(client.getAdAccounts()).rejects.toThrow(
+        unmappedRateLimitError,
+      );
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      const second = client.getAdAccounts();
+      await vi.advanceTimersByTimeAsync(1900);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(100);
+      await second;
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("should isolate cooldowns to the affected ad account", async () => {
+      mockFetch
+        .mockRejectedValueOnce(
+          new RateLimitError(createMetaErrorBody(17, "Rate limit"), 2),
+        )
+        .mockResolvedValueOnce(createMockResponse({ body: { data: [] } }));
+
+      const client = new MetaClient({
+        accessToken: "token",
+        maxRetries: 0,
+        minRequestIntervalMs: 0,
+        rateLimitCooldownMs: 5000,
+      });
+
+      await expect(client.getCampaigns("act_111")).rejects.toThrow(
+        RateLimitError,
+      );
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      const unaffected = client.getCampaigns("act_222");
+      await vi.advanceTimersByTimeAsync(0);
+      await unaffected;
+      expect(mockFetch).toHaveBeenCalledTimes(2);
     });
   });
 

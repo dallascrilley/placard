@@ -7,6 +7,7 @@
 
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
+import { performance } from "node:perf_hooks";
 import type {
   Ad,
   AdAccount,
@@ -22,35 +23,160 @@ import type {
 import { type MetaAuth, getDefaultMetaAuth } from "./auth.js";
 import {
   AuthenticationError,
+  MetaApiError,
+  RateLimitError,
   parseApiError,
+  sleep,
   withRetry,
 } from "./error-handling.js";
 
 const META_API_VERSION = process.env["META_API_VERSION"] ?? "v22.0";
 const META_API_BASE_URL = `https://graph.facebook.com/${META_API_VERSION}`;
+const DEFAULT_MIN_REQUEST_INTERVAL_MS = 1000;
+const DEFAULT_RATE_LIMIT_COOLDOWN_MS = 60000;
+
+function resolveDelayMs(
+  optionValue: number | undefined,
+  envValue: string | undefined,
+  fallbackMs: number,
+): number {
+  if (typeof optionValue === "number" && Number.isFinite(optionValue)) {
+    return Math.max(0, optionValue);
+  }
+
+  if (typeof envValue === "string" && envValue.trim().length > 0) {
+    const parsed = Number.parseInt(envValue, 10);
+    if (Number.isFinite(parsed)) {
+      return Math.max(0, parsed);
+    }
+  }
+
+  return fallbackMs;
+}
 
 export interface MetaClientOptions {
   accessToken?: string;
   userId?: string;
   auth?: MetaAuth;
   maxRetries?: number;
+  minRequestIntervalMs?: number;
+  rateLimitCooldownMs?: number;
 }
 
 export type LookalikeSpec =
   | { country: string; ratio: number }
   | { type: string; country: string; starting_ratio: number; ratio: number };
 
+interface RateLimiterState {
+  queueTail: Promise<void>;
+  nextRequestAtMs: number;
+}
+
 export class MetaClient {
+  private static limiterStates = new Map<string, RateLimiterState>();
+
   private accessToken: string | null;
   private userId: string;
   private auth: MetaAuth;
   private maxRetries: number;
+  private minRequestIntervalMs: number;
+  private rateLimitCooldownMs: number;
 
   constructor(options: MetaClientOptions = {}) {
     this.accessToken = options.accessToken ?? null;
     this.userId = options.userId ?? "default";
     this.auth = options.auth ?? getDefaultMetaAuth();
     this.maxRetries = options.maxRetries ?? 3;
+    this.minRequestIntervalMs = resolveDelayMs(
+      options.minRequestIntervalMs,
+      process.env["META_API_MIN_REQUEST_INTERVAL_MS"],
+      DEFAULT_MIN_REQUEST_INTERVAL_MS,
+    );
+    this.rateLimitCooldownMs = resolveDelayMs(
+      options.rateLimitCooldownMs,
+      process.env["META_API_RATE_LIMIT_COOLDOWN_MS"],
+      DEFAULT_RATE_LIMIT_COOLDOWN_MS,
+    );
+  }
+
+  private static isRateLimitCode(code: number): boolean {
+    return (
+      code === 4 || code === 17 || code === 32 || code === 613 || code === 80004
+    );
+  }
+
+  private static getLimiterState(key: string): RateLimiterState {
+    const existing = MetaClient.limiterStates.get(key);
+    if (existing) {
+      return existing;
+    }
+
+    const created: RateLimiterState = {
+      queueTail: Promise.resolve(),
+      nextRequestAtMs: 0,
+    };
+    MetaClient.limiterStates.set(key, created);
+    return created;
+  }
+
+  private getRateLimiterKey(endpoint: string): string {
+    const accountMatch = endpoint.match(/^\/(act_\d+)(?:\/|$)/);
+    if (accountMatch?.[1]) {
+      return `account:${accountMatch[1]}`;
+    }
+
+    return `user:${this.userId}`;
+  }
+
+  private async waitForRequestSlot(rateLimiterKey: string): Promise<void> {
+    const limiterState = MetaClient.getLimiterState(rateLimiterKey);
+    let releaseCurrentTurn: (() => void) | undefined;
+    const currentTurn = new Promise<void>((resolve) => {
+      releaseCurrentTurn = resolve;
+    });
+
+    const previousTurn = limiterState.queueTail;
+    limiterState.queueTail = previousTurn.then(() => currentTurn);
+    await previousTurn;
+
+    try {
+      const now = performance.now();
+      const waitMs = Math.max(0, limiterState.nextRequestAtMs - now);
+      if (waitMs > 0) {
+        await sleep(waitMs);
+      }
+
+      const scheduledAt = performance.now();
+      limiterState.nextRequestAtMs = scheduledAt + this.minRequestIntervalMs;
+    } finally {
+      releaseCurrentTurn?.();
+    }
+  }
+
+  private applyRateLimitCooldown(error: unknown, rateLimiterKey: string): void {
+    if (!(error instanceof MetaApiError)) return;
+    const isRateLimitError =
+      error instanceof RateLimitError || MetaClient.isRateLimitCode(error.code);
+    if (!isRateLimitError) return;
+
+    const limiterState = MetaClient.getLimiterState(rateLimiterKey);
+    const retryAfterMs =
+      error instanceof RateLimitError && typeof error.retryAfter === "number"
+        ? error.retryAfter * 1000
+        : 0;
+    const cooldownMs = Math.max(this.rateLimitCooldownMs, retryAfterMs);
+    const cooldownUntil = performance.now() + cooldownMs;
+    limiterState.nextRequestAtMs = Math.max(
+      limiterState.nextRequestAtMs,
+      cooldownUntil,
+    );
+  }
+
+  /**
+   * Test-only helper to isolate global request pacing state between tests.
+   */
+  static resetRateLimiterStateForTests(): void {
+    MetaClient.limiterStates.clear();
   }
 
   /**
@@ -86,6 +212,8 @@ export class MetaClient {
 
     return withRetry(
       async () => {
+        const rateLimiterKey = this.getRateLimiterKey(endpoint);
+        await this.waitForRequestSlot(rateLimiterKey);
         const token = await this.getToken();
 
         // Build URL with query params
@@ -110,16 +238,21 @@ export class MetaClient {
           fetchOptions.body = JSON.stringify(body);
         }
 
-        const response = await fetch(url.toString(), fetchOptions);
+        try {
+          const response = await fetch(url.toString(), fetchOptions);
 
-        // Parse response
-        const data = await response.json();
+          // Parse response
+          const data = await response.json();
 
-        if (!response.ok) {
-          throw parseApiError(response, data);
+          if (!response.ok) {
+            throw parseApiError(response, data);
+          }
+
+          return data as T;
+        } catch (error) {
+          this.applyRateLimitCooldown(error, rateLimiterKey);
+          throw error;
         }
-
-        return data as T;
       },
       {
         maxRetries: this.maxRetries,
@@ -679,16 +812,21 @@ export class MetaClient {
       adset_id: string;
       creative: { creative_id: string } | object;
       status?: string;
+      tracking_specs?: object[];
     },
   ): Promise<{ id: string }> {
+    const body: Record<string, unknown> = {
+      name: data.name,
+      adset_id: data.adset_id,
+      creative: data.creative,
+      status: data.status ?? "PAUSED",
+    };
+    if (data.tracking_specs) {
+      body["tracking_specs"] = JSON.stringify(data.tracking_specs);
+    }
     return this.request<{ id: string }>(`/${accountId}/ads`, {
       method: "POST",
-      body: {
-        name: data.name,
-        adset_id: data.adset_id,
-        creative: data.creative,
-        status: data.status ?? "PAUSED",
-      },
+      body,
     });
   }
 

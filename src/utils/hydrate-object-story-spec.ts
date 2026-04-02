@@ -52,7 +52,7 @@ export async function hydrateObjectStorySpecLinkPicture(
     );
   }
 
-  const out = { ...ld, picture: url };
+  const out: Record<string, unknown> = { ...ld, picture: url };
   delete out["image_hash"];
   cloned["link_data"] = out;
   return cloned;

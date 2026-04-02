@@ -1130,6 +1130,32 @@ describe("MetaClient", () => {
     });
   });
 
+  describe("getAdImageUrlByHash", () => {
+    it("should return url for matching hash", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({
+          body: {
+            data: [{ hash: "h1", url: "https://fbcdn/u1.jpg" }],
+          },
+        }),
+      );
+
+      const client = new MetaClient({ accessToken: "token" });
+      const url = await client.getAdImageUrlByHash("act_123", "h1");
+      expect(url).toBe("https://fbcdn/u1.jpg");
+      const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+      expect(calledUrl).toContain("/act_123/adimages");
+      expect(calledUrl).toContain("hashes");
+    });
+
+    it("should return null when no rows", async () => {
+      mockFetch.mockResolvedValue(createMockResponse({ body: { data: [] } }));
+      const client = new MetaClient({ accessToken: "token" });
+      const url = await client.getAdImageUrlByHash("act_123", "missing");
+      expect(url).toBeNull();
+    });
+  });
+
   describe("getAdSetDetails", () => {
     it("should allow overriding returned fields", async () => {
       mockFetch.mockResolvedValue(

@@ -19,6 +19,7 @@ import {
   userIdSchema,
 } from "../schemas/index.js";
 import { normalizeAccountId } from "../utils/id-normalizer.js";
+import { hydrateObjectStorySpecLinkPicture } from "../utils/hydrate-object-story-spec.js";
 import { withToolHandler } from "../utils/tool-handler.js";
 import {
   createErrorResponse,
@@ -195,7 +196,7 @@ Returns:
   }
 
 Examples:
-  - Link ad creative: { "account_id": "act_123", "name": "Sale Banner", "object_story_spec": { "page_id": "987654321", "link_data": { "message": "Summer Sale!", "link": "https://example.com/sale", "image_hash": "abc123" } } }
+  - Link ad creative: you may pass image_hash in link_data; the server resolves it to link_data.picture via adimages before create (avoids blank Ads Manager previews; do not pass picture and image_hash together).
   - Tickets CTA (supported): use BUY_TICKETS in object_story_spec.link_data.call_to_action.type
   - Video ad creative: { "account_id": "act_123", "name": "Video Ad", "object_story_spec": { "page_id": "987654321", "video_data": { "video_id": "111222333", "message": "Watch our video", "link": "https://example.com" } } }
   - Dynamic creative: { "account_id": "act_123", "name": "DCO Creative", "asset_feed_spec": { "bodies": [{ "text": "Variant A" }, { "text": "Variant B" }], "titles": [{ "text": "Title A" }], "images": [{ "hash": "abc123" }], "link_urls": [{ "website_url": "https://example.com" }], "call_to_action_types": ["LEARN_MORE"] }, "instagram_actor_id": "1784...", "url_tags": "utm_source=facebook&utm_medium=paid_social" }
@@ -273,9 +274,18 @@ Errors:
           return createErrorResponse(new Error(ctaErr), format);
         }
 
+        const objectStoryForGraph =
+          object_story_spec !== undefined
+            ? await hydrateObjectStorySpecLinkPicture(
+                client,
+                normalizedId,
+                object_story_spec as Record<string, unknown>,
+              )
+            : undefined;
+
         const result = await client.createAdCreative(normalizedId, {
           name,
-          object_story_spec,
+          object_story_spec: objectStoryForGraph,
           asset_feed_spec,
           url_tags,
           instagram_actor_id,

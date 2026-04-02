@@ -508,14 +508,22 @@ describe("batch dry-run tool", () => {
   });
 });
 
+const defaultPictureFromHash = "https://cdn.example/from-hash.jpg";
+
+function mockBatchClient(overrides: Record<string, unknown> = {}): MetaClient {
+  return {
+    getAdImageUrlByHash: vi.fn().mockResolvedValue(defaultPictureFromHash),
+    createAdCreative: vi.fn().mockResolvedValue({ id: "cr_1" }),
+    createCampaign: vi.fn().mockResolvedValue({ id: "camp_1" }),
+    createAdSet: vi.fn().mockResolvedValue({ id: "adset_1" }),
+    createAd: vi.fn().mockResolvedValue({ id: "ad_1" }),
+    ...overrides,
+  } as unknown as MetaClient;
+}
+
 describe("executeBatch", () => {
   it("creates full hierarchy for happy path", async () => {
-    const client = {
-      createAdCreative: vi.fn().mockResolvedValue({ id: "cr_1" }),
-      createCampaign: vi.fn().mockResolvedValue({ id: "camp_1" }),
-      createAdSet: vi.fn().mockResolvedValue({ id: "adset_1" }),
-      createAd: vi.fn().mockResolvedValue({ id: "ad_1" }),
-    } as unknown as MetaClient;
+    const client = mockBatchClient();
 
     const result = await executeBatch(client, "act_123", buildValidConfig());
 
@@ -556,7 +564,7 @@ describe("executeBatch", () => {
     });
 
     const createAdCreative = vi.fn().mockResolvedValue({ id: "cr_1" });
-    const client = {
+    const client = mockBatchClient({
       createAdCreative,
       createCampaign: vi
         .fn()
@@ -570,7 +578,7 @@ describe("executeBatch", () => {
         .fn()
         .mockResolvedValueOnce({ id: "ad_1" })
         .mockResolvedValueOnce({ id: "ad_2" }),
-    } as unknown as MetaClient;
+    });
 
     const result = await executeBatch(client, "act_123", config);
 
@@ -585,12 +593,10 @@ describe("executeBatch", () => {
   });
 
   it("returns partial progress when a tier fails", async () => {
-    const client = {
-      createAdCreative: vi.fn().mockResolvedValue({ id: "cr_1" }),
-      createCampaign: vi.fn().mockResolvedValue({ id: "camp_1" }),
+    const client = mockBatchClient({
       createAdSet: vi.fn().mockRejectedValue(new Error("ad set failed")),
       createAd: vi.fn(),
-    } as unknown as MetaClient;
+    });
 
     const result = await executeBatch(client, "act_123", buildValidConfig());
 
@@ -635,12 +641,12 @@ describe("executeBatch", () => {
       ],
     };
 
-    const client = {
+    const client = mockBatchClient({
       createAdCreative: vi.fn().mockResolvedValue({ id: "cr_inline_1" }),
       createCampaign: vi.fn().mockResolvedValue({ id: "camp_inline_1" }),
       createAdSet: vi.fn().mockResolvedValue({ id: "adset_inline_1" }),
       createAd: vi.fn().mockRejectedValue(new Error("ad failed")),
-    } as unknown as MetaClient;
+    });
 
     const result = await executeBatch(client, "act_123", config);
 
@@ -682,22 +688,25 @@ describe("executeBatch", () => {
     ];
 
     const createAdCreative = vi.fn().mockResolvedValue({ id: "cr_1" });
-    const client = {
+    const getAdImageUrlByHash = vi.fn().mockResolvedValue(defaultPictureFromHash);
+    const client = mockBatchClient({
       createAdCreative,
-      createCampaign: vi.fn().mockResolvedValue({ id: "camp_1" }),
-      createAdSet: vi.fn().mockResolvedValue({ id: "adset_1" }),
-      createAd: vi.fn().mockResolvedValue({ id: "ad_1" }),
-    } as unknown as MetaClient;
+      getAdImageUrlByHash,
+    });
 
     const result = await executeBatch(client, "act_123", config);
 
     expect(result.completed).toBe(true);
     const creativePayload = createAdCreative.mock.calls[0]?.[1] as {
-      object_story_spec?: { link_data?: { image_hash?: string } };
+      object_story_spec?: {
+        link_data?: { image_hash?: string; picture?: string };
+      };
     };
-    expect(creativePayload.object_story_spec?.link_data?.image_hash).toBe(
-      "hash_hero_1",
+    expect(creativePayload.object_story_spec?.link_data?.image_hash).toBeUndefined();
+    expect(creativePayload.object_story_spec?.link_data?.picture).toBe(
+      defaultPictureFromHash,
     );
+    expect(getAdImageUrlByHash).toHaveBeenCalledWith("act_123", "hash_hero_1");
   });
 
   it("builds object_story_spec from copy-template creative fields", async () => {
@@ -738,12 +747,7 @@ describe("executeBatch", () => {
     };
 
     const createAdCreative = vi.fn().mockResolvedValue({ id: "cr_1" });
-    const client = {
-      createAdCreative,
-      createCampaign: vi.fn().mockResolvedValue({ id: "camp_1" }),
-      createAdSet: vi.fn().mockResolvedValue({ id: "adset_1" }),
-      createAd: vi.fn().mockResolvedValue({ id: "ad_1" }),
-    } as unknown as MetaClient;
+    const client = mockBatchClient({ createAdCreative });
 
     const result = await executeBatch(client, "act_123", config);
     expect(result.completed).toBe(true);
@@ -756,6 +760,7 @@ describe("executeBatch", () => {
           message?: string;
           name?: string;
           image_hash?: string;
+          picture?: string;
         };
       };
     };
@@ -767,8 +772,9 @@ describe("executeBatch", () => {
       "Join us this weekend",
     );
     expect(payload.object_story_spec?.link_data?.name).toBe("Spring Show");
-    expect(payload.object_story_spec?.link_data?.image_hash).toBe(
-      "hash_hero_template",
+    expect(payload.object_story_spec?.link_data?.image_hash).toBeUndefined();
+    expect(payload.object_story_spec?.link_data?.picture).toBe(
+      defaultPictureFromHash,
     );
   });
 
@@ -807,12 +813,7 @@ describe("executeBatch", () => {
     };
 
     const createAdCreative = vi.fn().mockResolvedValue({ id: "cr_1" });
-    const client = {
-      createAdCreative,
-      createCampaign: vi.fn().mockResolvedValue({ id: "camp_1" }),
-      createAdSet: vi.fn().mockResolvedValue({ id: "adset_1" }),
-      createAd: vi.fn().mockResolvedValue({ id: "ad_1" }),
-    } as unknown as MetaClient;
+    const client = mockBatchClient({ createAdCreative });
 
     const result = await executeBatch(client, "act_123", config);
     expect(result.completed).toBe(true);
@@ -856,8 +857,7 @@ describe("executeBatch", () => {
       .fn()
       .mockReturnValueOnce(firstCampaignPromise)
       .mockResolvedValueOnce({ id: "camp_2" });
-    const client = {
-      createAdCreative: vi.fn().mockResolvedValue({ id: "cr_1" }),
+    const client = mockBatchClient({
       createCampaign,
       createAdSet: vi
         .fn()
@@ -867,7 +867,7 @@ describe("executeBatch", () => {
         .fn()
         .mockResolvedValueOnce({ id: "ad_1" })
         .mockResolvedValueOnce({ id: "ad_2" }),
-    } as unknown as MetaClient;
+    });
 
     const executionPromise = executeBatch(client, "act_123", config);
 

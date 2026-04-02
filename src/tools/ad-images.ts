@@ -27,7 +27,7 @@ export function registerAdImageTools(server: McpServer): void {
     "meta_upload_image",
     `Upload an image to an ad account and get its image hash for use in ad creatives.
 
-Reads an image from a local file path or URL, uploads it to Meta's adimages API, and returns the image_hash. Use this hash in object_story_spec.link_data.image_hash (or photo_data.image_hash) when creating ad creatives.
+Reads an image from a local file path or URL, uploads it to Meta's adimages API, and returns the image_hash. For link ads, batch and creative tools map this hash to link_data.picture automatically before Graph create.
 
 Args:
   - account_id (string, required): Ad account ID (with or without 'act_' prefix)
@@ -95,7 +95,7 @@ Errors:
             image_hash: result.image_hash,
             filename: result.filename,
             message:
-              "Image uploaded successfully. Use image_hash in object_story_spec.link_data.image_hash (or photo_data.image_hash) when creating ad creatives.",
+              "Image uploaded successfully. Store image_hash in your batch config; meta_create_campaign_from_config and meta_create_ad_creative resolve it to link_data.picture automatically for link ads.",
           },
           format,
         );

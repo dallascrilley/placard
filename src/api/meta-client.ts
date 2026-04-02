@@ -1043,6 +1043,28 @@ export class MetaClient {
     return { image_hash: hash, filename: key };
   }
 
+  /**
+   * Resolve the CDN URL for an image hash already stored in the ad account.
+   * Used to build link_data.picture (preferred over image_hash-only for link ads).
+   */
+  async getAdImageUrlByHash(
+    accountId: string,
+    imageHash: string,
+  ): Promise<string | null> {
+    const hashes = JSON.stringify([imageHash]);
+    const result = await this.request<{
+      data?: { hash?: string; url?: string }[];
+    }>(`/${accountId}/adimages`, {
+      params: {
+        hashes,
+        fields: "hash,url",
+      },
+    });
+    const row =
+      result.data?.find((entry) => entry.hash === imageHash) ?? result.data?.[0];
+    return typeof row?.url === "string" ? row.url : null;
+  }
+
   // ============================================
   // Targeting Methods
   // ============================================

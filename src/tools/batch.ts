@@ -25,6 +25,7 @@ import {
   validateStopTimeBudgetCompatibility,
   validateTimestampTimezone,
 } from "./campaigns.js";
+import { hydrateObjectStorySpecLinkPicture } from "../utils/hydrate-object-story-spec.js";
 import {
   validateCreativeCallToAction,
   validateCreativeSpecInputs,
@@ -468,6 +469,22 @@ function resolveCreativeForCreate(
   };
 }
 
+/** Resolve creative for Graph API: link_data.image_hash → picture (adimages URL). */
+async function resolveCreativePayloadForGraph(
+  client: MetaClient,
+  accountId: string,
+  creative: CreativeInput,
+  imageHashes: Record<string, string>,
+): Promise<ReturnType<typeof resolveCreativeForCreate>> {
+  const base = resolveCreativeForCreate(creative, imageHashes);
+  const oss = await hydrateObjectStorySpecLinkPicture(
+    client,
+    accountId,
+    base.object_story_spec,
+  );
+  return { ...base, object_story_spec: oss };
+}
+
 function applyImageHashToObjectStorySpec(
   objectStorySpec: Record<string, unknown>,
   imageHash: string,
@@ -863,10 +880,15 @@ export async function executeBatch(
   };
 
   const sharedResults = await Promise.allSettled(
-    sharedCreatives.map((creative) =>
+    sharedCreatives.map(async (creative) =>
       client.createAdCreative(
         accountId,
-        resolveCreativeForCreate(creative, imageHashes),
+        await resolveCreativePayloadForGraph(
+          client,
+          accountId,
+          creative,
+          imageHashes,
+        ),
       ),
     ),
   );
@@ -1067,7 +1089,12 @@ export async function executeBatch(
       if (!creativeId && job.ad.creative) {
         inlineCreativeResult = await client.createAdCreative(
           accountId,
-          resolveCreativeForCreate(job.ad.creative, imageHashes),
+          await resolveCreativePayloadForGraph(
+            client,
+            accountId,
+            job.ad.creative,
+            imageHashes,
+          ),
         );
         creativeId = inlineCreativeResult.id;
       }
@@ -1179,6 +1206,7 @@ export function registerBatchTools(server: McpServer): void {
     `Create campaign hierarchy from a structured config in one call.
 
 Creates shared creatives, campaigns, ad sets, and ads in tiered execution.
+Link creatives: image_hash in link_data is resolved to picture (adimages URL) before Graph create so Ads Manager previews show the image; do not pass picture and image_hash together in config.
 Supports dry-run validation mode for pre-flight checks.
 
 Args:

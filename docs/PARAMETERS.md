@@ -1,6 +1,6 @@
 # Parameter Reference
 
-This document provides detailed information about key parameters across Meta Ads MCP tools.
+This document provides detailed information about key parameters across Placard tools.
 
 ## Campaign Parameters
 

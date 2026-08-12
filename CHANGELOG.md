@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Renamed to Placard.** The project was previously published as
+  `meta-ads-mcp` in the `DallasCrilleyMarTech` GitHub organization. The package
+  name, the binary, and the MCP server name reported in `initialize` are all
+  now `placard`. Update the server name in your MCP client config and, if you
+  installed the binary, the `meta-ads-mcp` command becomes `placard`. **Tool
+  names are unchanged**; every tool keeps its `meta_` prefix because it names
+  the API being called, not the project.
+- Raised the minimum supported Node version to 22 and bumped `better-sqlite3`
+  to `^13.0.3`. The previous `^11` line does not compile against Node 26's V8
+  headers, which broke `pnpm install` from a clean clone. CI now runs the full
+  gate on Node 22, 24, and 26.
+- `META_OAUTH_CALLBACK_URL` now falls back to `http://localhost:3001/callback`
+  instead of a deployment-specific host.
+- Added `scripts/smoke-test.mjs`, which starts the built server with no
+  credentials and asserts the advertised server name and tool count over the
+  MCP protocol. It runs in CI and in `pnpm validate`.
+
 ### Added
 
 #### New Tools

@@ -1,5 +1,5 @@
 /**
- * Meta Ads MCP Server - HTTP/SSE Transport
+ * Placard - HTTP/SSE transport
  *
  * Runs the MCP server with HTTP/SSE transport for remote usage.
  */
@@ -82,7 +82,7 @@ async function main(): Promise<void> {
   });
 
   httpServer.listen(PORT, HOST, () => {
-    console.log(`Meta Ads MCP Server listening on http://${HOST}:${PORT}`);
+    console.log(`Placard MCP server listening on http://${HOST}:${PORT}`);
     console.log("SSE endpoint: /sse");
     console.log("Messages endpoint: /messages");
     console.log("Health check: /health");

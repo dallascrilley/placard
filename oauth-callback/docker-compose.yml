@@ -12,7 +12,7 @@ services:
       - CALLBACK_URL=https://example.com/callback
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.meta-oauth.rule=Host(`example.com`)"
+      - "traefik.http.routers.meta-oauth.rule=Host(`callback.example.com`)"
       - "traefik.http.routers.meta-oauth.entrypoints=websecure"
       - "traefik.http.routers.meta-oauth.tls.certresolver=letsencrypt"
       - "traefik.http.services.meta-oauth.loadbalancer.server.port=3000"

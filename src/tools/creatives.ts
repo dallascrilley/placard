@@ -18,8 +18,8 @@ import {
   responseFormatSchema,
   userIdSchema,
 } from "../schemas/index.js";
-import { normalizeAccountId } from "../utils/id-normalizer.js";
 import { hydrateObjectStorySpecLinkPicture } from "../utils/hydrate-object-story-spec.js";
+import { normalizeAccountId } from "../utils/id-normalizer.js";
 import { withToolHandler } from "../utils/tool-handler.js";
 import {
   createErrorResponse,

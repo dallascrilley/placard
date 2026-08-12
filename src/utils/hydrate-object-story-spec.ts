@@ -34,6 +34,7 @@ export async function hydrateObjectStorySpecLinkPicture(
 
   if (typeof picture === "string" && picture.trim().length > 0) {
     if (imageHash !== undefined) {
+      // biome-ignore lint/performance/noDelete: Meta rejects a creative carrying both picture and image_hash, so the key must be absent rather than set to undefined.
       delete ld["image_hash"];
     }
     cloned["link_data"] = ld;
@@ -53,6 +54,7 @@ export async function hydrateObjectStorySpecLinkPicture(
   }
 
   const out: Record<string, unknown> = { ...ld, picture: url };
+  // biome-ignore lint/performance/noDelete: see above, the key must be absent.
   delete out["image_hash"];
   cloned["link_data"] = out;
   return cloned;

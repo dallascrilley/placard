@@ -1061,7 +1061,8 @@ export class MetaClient {
       },
     });
     const row =
-      result.data?.find((entry) => entry.hash === imageHash) ?? result.data?.[0];
+      result.data?.find((entry) => entry.hash === imageHash) ??
+      result.data?.[0];
     return typeof row?.url === "string" ? row.url : null;
   }
 

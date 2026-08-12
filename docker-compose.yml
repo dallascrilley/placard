@@ -1,9 +1,9 @@
 version: "3.8"
 
 services:
-  meta-ads-mcp:
+  placard:
     build: .
-    container_name: meta-ads-mcp
+    container_name: placard
     ports:
       - "3001:3001"
     environment:
@@ -16,7 +16,7 @@ services:
       - META_API_VERSION=${META_API_VERSION:-v22.0}
       - META_OAUTH_CALLBACK_URL=${META_OAUTH_CALLBACK_URL}
     volumes:
-      - meta-ads-data:/app/data
+      - placard-data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
@@ -26,4 +26,4 @@ services:
       start_period: 10s
 
 volumes:
-  meta-ads-data:
+  placard-data:

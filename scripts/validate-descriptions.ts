@@ -8,16 +8,21 @@
 
 import { readFileSync } from "node:fs";
 
+// Every file that calls server.tool(). Keep this in sync when adding one, or
+// the new tool's description silently escapes the length floor.
 const TOOL_FILES = [
-  "src/tools/auth.ts",
+  "src/server.ts",
   "src/tools/accounts.ts",
-  "src/tools/campaigns.ts",
-  "src/tools/adsets.ts",
+  "src/tools/ad-images.ts",
   "src/tools/ads.ts",
-  "src/tools/creatives.ts",
-  "src/tools/targeting.ts",
-  "src/tools/insights.ts",
+  "src/tools/adsets.ts",
+  "src/tools/auth.ts",
+  "src/tools/batch.ts",
+  "src/tools/campaigns.ts",
   "src/tools/composite.ts",
+  "src/tools/creatives.ts",
+  "src/tools/insights.ts",
+  "src/tools/targeting.ts",
 ];
 
 const MIN_DESCRIPTION_LENGTH = 200;

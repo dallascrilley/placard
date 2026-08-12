@@ -688,7 +688,9 @@ describe("executeBatch", () => {
     ];
 
     const createAdCreative = vi.fn().mockResolvedValue({ id: "cr_1" });
-    const getAdImageUrlByHash = vi.fn().mockResolvedValue(defaultPictureFromHash);
+    const getAdImageUrlByHash = vi
+      .fn()
+      .mockResolvedValue(defaultPictureFromHash);
     const client = mockBatchClient({
       createAdCreative,
       getAdImageUrlByHash,
@@ -702,7 +704,9 @@ describe("executeBatch", () => {
         link_data?: { image_hash?: string; picture?: string };
       };
     };
-    expect(creativePayload.object_story_spec?.link_data?.image_hash).toBeUndefined();
+    expect(
+      creativePayload.object_story_spec?.link_data?.image_hash,
+    ).toBeUndefined();
     expect(creativePayload.object_story_spec?.link_data?.picture).toBe(
       defaultPictureFromHash,
     );

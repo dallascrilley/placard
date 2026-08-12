@@ -5,6 +5,9 @@ welcome.
 
 ## Setup
 
+This package is not published to npm (`"private": true`). Develop from a clone.
+
+
 Placard targets Node 22 and newer. Development is pinned to the version in
 `.nvmrc` (Node 24). `better-sqlite3` ships prebuilt binaries for common
 platforms; a C++ toolchain (Xcode Command Line Tools on macOS,

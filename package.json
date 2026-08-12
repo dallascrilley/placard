@@ -1,6 +1,7 @@
 {
   "name": "placard",
   "version": "0.1.0",
+  "private": true,
   "description": "MCP server that gives coding agents tools to build and manage Meta ad campaigns",
   "type": "module",
   "main": "dist/index.js",

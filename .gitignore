@@ -34,8 +34,16 @@ coverage/
 
 # Cache
 .cache/
-.claude/cache/
-.claude/tsc-cache/
 
-# Tooling state
+# Local agent / assistant harness state (never belongs in this repo)
+.agents/
+.beads/
+.claude/
+.codex/
+.cursor/
+.grok/
 .reviewrover/
+thoughts/
+AGENTS.md
+CLAUDE.md
+STATUS.md

@@ -1,5 +1,5 @@
 /**
- * Centralized constants for Meta Ads MCP tools.
+ * Centralized constants for Placard tools.
  *
  * All enum-like constants used across tool files are consolidated here
  * to ensure consistency and eliminate duplication.

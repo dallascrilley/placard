@@ -12,7 +12,7 @@ import { registerCreativeTools } from "./tools/creatives.js";
 import { registerInsightsTools } from "./tools/insights.js";
 import { registerTargetingTools } from "./tools/targeting.js";
 
-const SERVER_NAME = "meta-ads-mcp";
+const SERVER_NAME = "placard";
 const SERVER_VERSION = "0.1.0";
 
 export function createServer(): McpServer {
@@ -24,7 +24,7 @@ export function createServer(): McpServer {
   // Register a health check tool for initial testing
   server.tool(
     "meta_health_check",
-    `Check if the Meta Ads MCP server is running and healthy.
+    `Check if the Placard MCP server is running and healthy.
 
 Performs a basic health check to verify the server is operational and responding to requests. Returns server status, name, version, and current timestamp. Use this to verify connectivity before performing other operations.
 
@@ -34,7 +34,7 @@ Args:
 Returns:
   {
     "status": "healthy",
-    "server": "meta-ads-mcp",
+    "server": "placard",
     "version": "0.1.0",
     "timestamp": "2025-01-01T00:00:00.000Z"
   }

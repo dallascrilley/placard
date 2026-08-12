@@ -56,7 +56,7 @@ const adSchema = z
       .array(z.record(z.unknown()))
       .optional()
       .describe(
-        'Tracking specs for conversion tracking, e.g. [{"action.type": ["offsite_conversion"], "fb_pixel": ["1234567890782"]}]',
+        'Tracking specs for conversion tracking, e.g. [{"action.type": ["offsite_conversion"], "fb_pixel": ["1234567890123456"]}]',
       ),
   })
   .strict()

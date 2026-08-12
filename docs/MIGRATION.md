@@ -2,7 +2,7 @@
 
 ## Upgrading to Latest Version
 
-This guide helps you update your code when new features and parameters are added to the Meta Ads MCP server.
+This guide helps you update your code when new features and parameters are added to the Placard MCP server.
 
 ### Recent Updates (February 2026)
 

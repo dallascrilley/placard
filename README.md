@@ -37,9 +37,10 @@ because that detail is what lets an agent correct itself on the next call. See
 - Node 22 or newer. Development is pinned to the version in
   [`.nvmrc`](.nvmrc); CI runs 22, 24, and 26.
 - pnpm (the repo pins a version via `packageManager`).
-- A C++ toolchain, because `better-sqlite3` compiles a native addon. Xcode
-  Command Line Tools on macOS, `build-essential` and `python3` on
-  Debian/Ubuntu.
+- `better-sqlite3` ships prebuilt binaries for common platforms (macOS
+  arm64/x64, Linux x64/arm64, Windows), so most installs compile nothing. On
+  an unlisted platform you need a C++ toolchain (Xcode Command Line Tools on
+  macOS, `build-essential` and `python3` on Debian/Ubuntu).
 - A Meta app with the Marketing API enabled, for anything that touches real
   ad accounts.
 

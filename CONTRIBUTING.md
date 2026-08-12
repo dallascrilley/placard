@@ -6,9 +6,10 @@ welcome.
 ## Setup
 
 Placard targets Node 22 and newer. Development is pinned to the version in
-`.nvmrc` (Node 24). `better-sqlite3` compiles a native addon at install time,
-so you need a working C++ toolchain (Xcode Command Line Tools on macOS,
-`build-essential` and `python3` on Debian/Ubuntu).
+`.nvmrc` (Node 24). `better-sqlite3` ships prebuilt binaries for common
+platforms; a C++ toolchain (Xcode Command Line Tools on macOS,
+`build-essential` and `python3` on Debian/Ubuntu) is only needed when no
+prebuild matches your platform.
 
 ```bash
 git clone https://github.com/dallascrilley/placard.git
@@ -17,8 +18,9 @@ pnpm install
 pnpm validate
 ```
 
-`pnpm validate` runs the same four gates CI runs: `typecheck`, `lint`, `test`,
-`build`. Get it green before opening a pull request.
+`pnpm validate` runs the same six gates CI runs: `typecheck`, `lint`, `test`,
+`build`, `validate:descriptions`, and the credential-free smoke test. Get it
+green before opening a pull request.
 
 ## Individual commands
 
@@ -31,6 +33,11 @@ pnpm validate
 | `pnpm test:watch` | Vitest in watch mode |
 | `pnpm build` | Compile TypeScript to `dist/` |
 | `pnpm validate:descriptions` | Assert every tool description is substantial |
+| `pnpm smoke` | Start the built server with no credentials, assert name + tool count |
+| `pnpm dev` | Run the stdio server under tsx watch |
+| `pnpm dev:http` | Run the HTTP/SSE transport under tsx watch |
+| `pnpm start` | Run the built stdio server |
+| `pnpm start:http` | Run the built HTTP/SSE transport |
 
 ## Tests never touch the Meta API
 

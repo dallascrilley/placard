@@ -25,6 +25,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   credentials and asserts the advertised server name and tool count over the
   MCP protocol. It runs in CI and in `pnpm validate`.
 
+#### Validations
+- Enhanced targeting validation for Advantage+ audience age constraints
+- Added geo_locations radius validation to prevent API errors
+- Added promoted_object compatibility checks for different optimization goals
+
 ### Added
 
 #### New Tools
@@ -58,13 +63,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 #### Constants
 - Added `DESTINATION_TYPES` constant with values: UNDEFINED, WEBSITE, APP, MESSENGER, WHATSAPP, PHONE_CALL, FACEBOOK, INSTAGRAM_PROFILE, INSTAGRAM_DIRECT, MESSAGING_MESSENGER_WHATSAPP
 - Added `PACING_TYPES` constant with values: standard, no_pacing, day_parting
-
-### Changed
-
-#### Validations
-- Enhanced targeting validation for Advantage+ audience age constraints
-- Added geo_locations radius validation to prevent API errors
-- Added promoted_object compatibility checks for different optimization goals
 
 ### Fixed
 - Improved error messages for special ad category country requirements

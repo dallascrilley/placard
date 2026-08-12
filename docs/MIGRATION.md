@@ -4,7 +4,7 @@
 
 This guide helps you update your code when new features and parameters are added to the Placard MCP server.
 
-### Recent Updates (February 2026)
+### Updates (2026-02)
 
 #### New Delete Tools
 

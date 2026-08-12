@@ -154,7 +154,7 @@ Returns:
   If not authenticated:
   {
     "status": "not_authenticated",
-    "message": "Not authenticated. Use get_login_link to start OAuth flow.",
+    "message": "Not authenticated. Use meta_get_login_link to start OAuth flow.",
     "user_id": "default"
   }
 
@@ -184,7 +184,7 @@ Errors:
                 {
                   status: "not_authenticated",
                   message:
-                    "Not authenticated. Use get_login_link to start OAuth flow.",
+                    "Not authenticated. Use meta_get_login_link to start OAuth flow.",
                   user_id: userId,
                 },
                 null,
@@ -235,7 +235,7 @@ Errors:
     "meta_logout",
     `Logout and revoke the Meta Ads access token.
 
-Removes the stored access token for a user and optionally revokes it with Meta's API. After logout, the user must re-authenticate using get_login_link.
+Removes the stored access token for a user and optionally revokes it with Meta's API. After logout, the user must re-authenticate using meta_get_login_link.
 
 Args:
   - user_id (string, optional): User identifier to logout. Defaults to 'default'.

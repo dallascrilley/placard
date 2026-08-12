@@ -142,7 +142,7 @@ describe("MetaClient", () => {
 
       await expect(client.getAdAccounts()).rejects.toThrow(AuthenticationError);
       await expect(client.getAdAccounts()).rejects.toThrow(
-        "Not authenticated. Use get_login_link to authenticate.",
+        "Not authenticated. Use meta_get_login_link to authenticate.",
       );
     });
 

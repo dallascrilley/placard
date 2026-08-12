@@ -1,3 +1,0 @@
-[submodule "endpoint-app"]
-	path = endpoint-app
-	url = https://github.com/dallascrilley/meta-oauth-endpoint.git

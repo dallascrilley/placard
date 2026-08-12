@@ -8,9 +8,11 @@ import {
 const META_APP_ID = process.env["META_APP_ID"] ?? "";
 const META_APP_SECRET = process.env["META_APP_SECRET"] ?? "";
 const META_API_VERSION = process.env["META_API_VERSION"] ?? "v22.0";
+// Falls back to the local callback server bundled in oauth-callback/.
+// Set META_OAUTH_CALLBACK_URL to the HTTPS redirect URI registered on your
+// Meta app before running against a real app.
 const META_OAUTH_CALLBACK_URL =
-  process.env["META_OAUTH_CALLBACK_URL"] ??
-  "https://meta.realnewspr.com/callback";
+  process.env["META_OAUTH_CALLBACK_URL"] ?? "http://localhost:3001/callback";
 
 // Required OAuth scopes for ads management
 const REQUIRED_SCOPES = [

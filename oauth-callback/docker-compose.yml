@@ -9,10 +9,10 @@ services:
       - META_APP_ID=${META_APP_ID}
       - META_APP_SECRET=${META_APP_SECRET}
       - META_API_VERSION=v22.0
-      - CALLBACK_URL=https://meta.realnewspr.com/callback
+      - CALLBACK_URL=https://example.com/callback
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.meta-oauth.rule=Host(`meta.realnewspr.com`)"
+      - "traefik.http.routers.meta-oauth.rule=Host(`callback.example.com`)"
       - "traefik.http.routers.meta-oauth.entrypoints=websecure"
       - "traefik.http.routers.meta-oauth.tls.certresolver=letsencrypt"
       - "traefik.http.services.meta-oauth.loadbalancer.server.port=3000"

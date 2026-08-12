@@ -39,7 +39,7 @@ Returns:
     "markdown_link": "[Authenticate with Meta Ads](https://...)",
     "state": "random_state_string",
     "user_id": "default",
-    "callback_url": "https://meta.realnewspr.com/callback",
+    "callback_url": "https://example.com/callback",
     "scopes_requested": ["ads_read", "ads_management"],
     "token_duration": "60 days",
     "instructions": ["1. Click the login link above", ...]

@@ -1,16 +1,17 @@
 /**
- * Minimal OAuth Callback Server for Meta Ads MCP
+ * Minimal OAuth callback server for Placard
  *
  * This server handles the OAuth callback from Facebook and exchanges
  * the authorization code for an access token.
  *
- * Deploy this on a server accessible at meta.realnewspr.com
+ * Deploy this behind the HTTPS host you set as META_OAUTH_CALLBACK_URL.
  */
 
 const META_APP_ID = process.env["META_APP_ID"] ?? "";
 const META_APP_SECRET = process.env["META_APP_SECRET"] ?? "";
 const META_API_VERSION = process.env["META_API_VERSION"] ?? "v22.0";
-const CALLBACK_URL = process.env["CALLBACK_URL"] ?? "https://meta.realnewspr.com/callback";
+const CALLBACK_URL =
+  process.env["CALLBACK_URL"] ?? "http://localhost:3000/callback";
 const PORT = parseInt(process.env["PORT"] ?? "3000", 10);
 const MCP_SERVER_URL = process.env["MCP_SERVER_URL"] ?? "";
 

@@ -190,7 +190,7 @@ export class MetaClient {
     const token = this.auth.getAccessTokenForUser(this.userId);
     if (!token) {
       throw new AuthenticationError(
-        "Not authenticated. Use get_login_link to authenticate.",
+        "Not authenticated. Use meta_get_login_link to authenticate.",
       );
     }
 

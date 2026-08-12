@@ -11,6 +11,22 @@ combinations. Placard wraps it in 49 MCP tools so an agent in Claude Code (or
 any MCP client) can go from "build me a campaign" to a live campaign tree
 without you clicking through Ads Manager.
 
+## Provenance
+
+Placard is original work in this repository: the MCP server, Meta Marketing API
+client, OAuth + SQLite token store, Zod tool schemas, pre-flight Meta rule
+checks, and the hermetic test harness. It depends on the public
+[`@modelcontextprotocol/sdk`](https://www.npmjs.com/package/@modelcontextprotocol/sdk)
+and Meta's HTTP API; it is not a fork of another Meta MCP server or Ads Manager
+wrapper.
+
+**What CI proves** (no Meta credentials): typecheck, lint, unit tests against a
+fetch mock, build, tool-description validation, and
+`scripts/smoke-test.mjs` (server starts and exposes 49 tools). **What is
+self-reported:** end-to-end creates against a real ad account — that path needs
+your Meta app and token, so a cold clone and CI cannot exercise spend-capable
+writes.
+
 ## What it looks like
 
 Once Placard is wired into your client, the whole surface is conversational:
@@ -46,7 +62,7 @@ because that detail is what lets an agent correct itself on the next call. See
 
 ## Install
 
-Placard is not published to npm. Clone and build it:
+Placard is not published to npm (`"private": true` in package.json). Clone and build it:
 
 ```bash
 git clone https://github.com/dallascrilley/placard.git
@@ -223,8 +239,9 @@ rather than full creative expansion.
 
 ## Non-goals
 
-- **Not published to npm.** Clone and build. I will publish when the API
-  surface stops moving.
+- **Not published to npm.** `package.json` is `"private": true` on purpose
+  (source install only). Clone and build. I will publish when the API surface
+  stops moving.
 - **No reporting or analytics layer.** The insights tools return what Meta
   returns. Placard does not model attribution, blend channels, or store
   history.
@@ -232,8 +249,8 @@ rather than full creative expansion.
   development. It has no auth layer, so do not expose it publicly. stdio is the
   intended deployment.
 - **No multi-tenant story.** Tokens are keyed by a `user_id` string in a local
-  SQLite file with no encryption. That is enough for one operator, not for a
-  hosted service.
+  SQLite file with no encryption at rest (see [SECURITY.md](SECURITY.md)). That
+  is enough for one operator on a locked-down machine, not for a hosted service.
 - **No idempotency guarantees.** Calling `meta_create_custom_audience` twice
   with the same arguments creates two audiences. Check by name first if you
   need it to be idempotent.

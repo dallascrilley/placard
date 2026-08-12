@@ -15,9 +15,11 @@ Placard holds Meta Marketing API access tokens on your behalf, so the security
 surface is mostly about those tokens.
 
 - **Token storage.** Tokens are written to a local SQLite database at
-  `SQLITE_DB_PATH` (default `./data/tokens.db`). The file is not encrypted.
-  Anyone who can read that file can act on the ad accounts the token covers.
-  Keep it on an encrypted volume with restrictive file permissions.
+  `SQLITE_DB_PATH` (default `./data/tokens.db`). The file is not encrypted at
+  rest by Placard. Anyone who can read that file can act on the ad accounts the
+  token covers. Keep it on an encrypted volume with restrictive file
+  permissions. Application-level encryption and multi-tenant isolation are
+  non-goals for this single-operator tool.
 - **App secret.** `META_APP_SECRET` is read from the environment and is used to
   exchange short-lived tokens for long-lived ones. It is never written to the
   database or logged.

@@ -1,4 +1,14 @@
+allowBuilds:
+  '@biomejs/biome': set this to true or false
+  better-sqlite3: set this to true or false
+  esbuild: set this to true or false
+
 onlyBuiltDependencies:
   - "@biomejs/biome"
   - better-sqlite3
   - esbuild
+
+# pnpm 11 turns unapproved dependency build scripts into a hard install
+# error. These scripts already did not run under pnpm 10, which only warned;
+# false keeps that behavior rather than newly granting them execution.
+strictDepBuilds: false
